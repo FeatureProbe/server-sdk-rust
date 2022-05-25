@@ -1,0 +1,3 @@
+[submodule "resources/fixtures/server-sdk-specification"]
+	path = resources/fixtures/spec
+	url = git@github.com:FeatureProbe/server-sdk-specification.git

@@ -1,0 +1,63 @@
+[package]
+edition = "2021"
+name = "feature-probe-server-sdk"
+version = "1.0.1"
+license = "Apache-2.0"
+authors = ["maintain@featureprobe.com"]
+
+[lib]
+name = "feature_probe_server_sdk"
+path = "src/lib.rs"
+
+[[bench]]
+name = "bench"
+harness = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["use_std", "event"]
+internal = []
+use_std = ["ureq"]
+event = ["feature-probe-event-std"]
+use_tokio = ["reqwest", "tokio"]
+event_tokio = ["feature-probe-event-tokio"]
+
+[dependencies]
+anyhow = "1.0"
+byteorder = "1"
+chrono = "0.4"
+dashmap = "5.1"
+headers = "0.3"
+http = "0.2"
+lazy_static = "1.4"
+minstant = "0.1"
+parking_lot = "0.12"
+rand = "0.8"
+regex = "0.2"
+semver = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha1 = "0.10"
+thiserror = "1.0"
+tracing = "0.1"
+url = "2"
+
+feature-probe-event-std = { optional = true, version = "1.0.1", package="feature-probe-event" }
+feature-probe-event-tokio = { optional = true, version = "1.0.1", features=["use_tokio"], default-features=false, package="feature-probe-event" }
+
+reqwest = { optional = true, version = "0.11", default-features = false, features = ["rustls-tls", "json"] }
+tokio = {optional = true, version = "1", features = ["full"]}
+ureq = { optional = true, version = "2.4" }
+
+[dev-dependencies]
+approx = "0.5"
+axum = { version = "0.5", features = ["headers"] }
+axum-extra = { version = "0.2", features = ["typed-routing"] }
+clap = { version = "3.1.10", features = ["derive"] }
+criterion = "0.3"
+rusty-hook = "^0.11.2"
+tokio = { version = "1", features = ["full"] }
+tracing-subscriber = "0.2"
+feature-probe-server = { git = "ssh://git@github.com/FeatureProbe/feature-probe-server.git" }
+
