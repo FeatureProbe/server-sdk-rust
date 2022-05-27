@@ -6,16 +6,10 @@ version = `git rev-parse --short HEAD`
 clean:
 	cargo clean
 release:
-	 (ssh-agent -k || true) && \
-		eval `ssh-agent -s` && \
-		ssh-add && \
-		cargo build --release --verbose
+	cargo build --release --verbose
 release-test:
-	 (ssh-agent -k || true) && \
-		eval `ssh-agent -s` && \
-		ssh-add && \
-		cargo test --release --verbose && \
-		cargo test --release --verbose --features async --no-default-features
+	cargo test --release --verbose && \
+	cargo test --release --verbose --features async --no-default-features
 test:
 	cargo test --verbose && \
 	cargo test --verbose --features use_tokio --features internal --features event_tokio --no-default-features

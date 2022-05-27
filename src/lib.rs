@@ -26,8 +26,6 @@ pub struct FPDetail<T: Default> {
 pub enum FPError {
     #[error("invalid json: {0}")]
     JsonError(String),
-    #[error("invalid http: {0}")]
-    HttpError(String),
     #[error("invalid url: {0}")]
     UrlError(String),
     #[error("evaluation error")]
@@ -68,5 +66,19 @@ impl Header for SdkAuthorization {
         if let Ok(value) = HeaderValue::from_str(&self.0) {
             values.extend(std::iter::once(value))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic]
+    fn test_encode_panic() {
+        let v: Vec<u8> = vec![21, 20, 19, 18]; // not visible string
+        let s = String::from_utf8(v).unwrap();
+        let auth = SdkAuthorization(s);
+        let _ = auth.encode();
     }
 }

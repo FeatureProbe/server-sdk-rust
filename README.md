@@ -1,4 +1,9 @@
 # FeatureProbe Server Side SDK for Rust
+[![Top Language](https://img.shields.io/github/languages/top/FeatureProbe/server-sdk-rust)](https://github.com/FeatureProbe/server-sdk-rust/search?l=rust)
+[![codecov](https://codecov.io/gh/featureprobe/server-sdk-rust/branch/main/graph/badge.svg?token=TAN3AU4CK2)](https://codecov.io/gh/featureprobe/server-sdk-rust)
+[![Github Star](https://img.shields.io/github/stars/FeatureProbe/server-sdk-rust)](https://github.com/FeatureProbe/server-sdk-rust/stargazers)
+[![Apache-2.0 license](https://img.shields.io/github/license/FeatureProbe/FeatureProbe)](https://github.com/FeatureProbe/FeatureProbe/blob/main/LICENSE)
+
 
 Feature Probe is an open source feature management service. This SDK is used to control features in rust programs. This
 SDK is designed primarily for use in multi-user systems such as web servers and applications.

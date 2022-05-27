@@ -1,0 +1,16 @@
+branch: true
+ignore-not-existing: true
+llvm: true
+filter: covered
+output-type: lcov
+output-path: ./coverage/lcov.info
+ignore:
+  - "*cargo*"
+  - "*.md"
+  - "*.toml"
+  - "*.lock"
+  - "*.json"
+  - "examples"
+  - "resources"
+  - "Dockerfile"
+  - "LICENSE"

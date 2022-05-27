@@ -568,6 +568,7 @@ version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ceeadf8b61053a5a93ea72d1d23826ec039e9fe662f096a3f1630c05b301a930"
 dependencies = [
+ "axum",
  "headers",
  "parking_lot",
  "reqwest",
@@ -581,34 +582,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "feature-probe-event"
-version = "1.0.1"
-source = "git+ssh://git@github.com/FeatureProbe/fp-event-rs.git#c396edfe5b2771f123fa43208a8d1d77b5bc2300"
-dependencies = [
- "axum",
- "headers",
- "parking_lot",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
- "url",
-]
-
-[[package]]
 name = "feature-probe-server"
 version = "1.0.1"
-source = "git+ssh://git@github.com/FeatureProbe/feature-probe-server.git#cf720345cdff123c82b1f4fed4e3a794d36de77e"
+source = "git+https://github.com/FeatureProbe/feature-probe-server.git#70b95d57d203171a1c4c4cf647bffdcbd44a507d"
 dependencies = [
  "anyhow",
  "axum",
  "axum-extra",
  "base64",
  "config",
- "feature-probe-event 1.0.1 (git+ssh://git@github.com/FeatureProbe/fp-event-rs.git)",
- "feature-probe-server-sdk 1.0.1 (git+ssh://git@github.com/FeatureProbe/server-sdk-rust.git)",
+ "feature-probe-event",
+ "feature-probe-server-sdk 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures",
  "log",
  "parking_lot",
@@ -635,7 +619,7 @@ dependencies = [
  "clap 3.1.18",
  "criterion",
  "dashmap",
- "feature-probe-event 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "feature-probe-event",
  "feature-probe-server",
  "headers",
  "http",
@@ -661,7 +645,8 @@ dependencies = [
 [[package]]
 name = "feature-probe-server-sdk"
 version = "1.0.1"
-source = "git+ssh://git@github.com/FeatureProbe/server-sdk-rust.git#466c9c614443da846f107d028fa5598b089c05cd"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71ee10468a363f78aaf0dee48bc1005e5941f4eb417cfdb653dc997112278dbc"
 dependencies = [
  "anyhow",
  "byteorder",

@@ -424,6 +424,13 @@ mod tests {
     }
 
     #[test]
+    fn test_load_invalid_json() {
+        let json_str = "{invalid_json}";
+        let repo = load_json(json_str);
+        assert!(repo.is_err());
+    }
+
+    #[test]
     fn test_salt_hash() {
         let bucket = salt_hash("key", "salt", 10000);
         assert_eq!(2647, bucket);
