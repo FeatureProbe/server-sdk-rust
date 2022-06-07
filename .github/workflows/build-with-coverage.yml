@@ -1,4 +1,4 @@
-name: Build & Test
+name: Build & Test & Coverage
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
     - name: Release
       run: make release
 
-  test:
+  coverage:
     runs-on: ubuntu-latest
     container:
       image: xd009642/tarpaulin:develop-nightly
