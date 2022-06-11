@@ -1,4 +1,4 @@
-use crate::core::{EvalDetail, Repository};
+use crate::evalutate::{EvalDetail, Repository};
 use crate::sync::Synchronizer;
 use crate::user::FPUser;
 use crate::{FPDetail, FPError, SdkAuthorization};
@@ -22,9 +22,9 @@ use tracing::info;
 use url::Url;
 
 #[cfg(feature = "internal")]
-use crate::core::Segment;
+use crate::evalutate::Segment;
 #[cfg(feature = "internal")]
-use crate::core::Toggle;
+use crate::evalutate::Toggle;
 #[cfg(feature = "use_tokio")]
 use reqwest::Client;
 #[cfg(feature = "internal")]
@@ -367,7 +367,7 @@ mod tests {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push(file);
         let json_str = fs::read_to_string(path).unwrap();
-        let repo = crate::core::load_json(&json_str);
+        let repo = crate::evalutate::load_json(&json_str);
         assert!(repo.is_ok(), "err is {:?}", repo);
         repo
     }
