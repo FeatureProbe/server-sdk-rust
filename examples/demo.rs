@@ -4,7 +4,6 @@ use std::time::Duration;
 // Connect to demo docker environment.
 // cargo run --example demo
 
-
 #[tokio::main]
 async fn main() {
     // let _ = tracing_subscriber::fmt()
@@ -41,5 +40,8 @@ async fn main() {
 
     let user2 = FPUser::new("user_id").with("city", "New York");
     let discount2 = fp.number_value("promotion_activity", &user2, 9.0);
-    println!("Result => discount for user in New York is : {:?}", discount2);
+    println!(
+        "Result => discount for user in New York is : {:?}",
+        discount2
+    );
 }
