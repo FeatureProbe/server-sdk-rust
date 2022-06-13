@@ -169,7 +169,7 @@ impl FeatureProbe {
 
     fn sync(&mut self) -> Result<(), FPError> {
         info!("sync url {}", &self.config.toggles_url);
-        let remote_url: Url = match Url::parse(&self.config.toggles_url) {
+        let toggles_url: Url = match Url::parse(&self.config.toggles_url) {
             Err(e) => return Err(FPError::UrlError(e.to_string())),
             Ok(url) => url,
         };
@@ -177,7 +177,7 @@ impl FeatureProbe {
         let auth = SdkAuthorization(self.config.server_sdk_key.clone()).encode();
         let repo = self.repo.clone();
         let syncer = Synchronizer::new(
-            remote_url,
+            toggles_url,
             refresh_interval,
             auth,
             #[cfg(feature = "use_tokio")]

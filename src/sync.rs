@@ -14,7 +14,7 @@ pub struct Synchronizer {
 
 #[derive(Debug)]
 struct Inner {
-    remote_url: Url,
+    toggles_url: Url,
     refresh_interval: Duration,
     auth: HeaderValue,
     #[cfg(feature = "use_tokio")]
@@ -25,7 +25,7 @@ struct Inner {
 //TODO: graceful shutdown
 impl Synchronizer {
     pub fn new(
-        remote_url: Url,
+        toggles_url: Url,
         refresh_interval: Duration,
         auth: HeaderValue,
         #[cfg(feature = "use_tokio")] client: Option<Client>,
@@ -33,7 +33,7 @@ impl Synchronizer {
     ) -> Self {
         Self {
             inner: Arc::new(Inner {
-                remote_url,
+                toggles_url,
                 refresh_interval,
                 auth,
                 #[cfg(feature = "use_tokio")]
@@ -98,7 +98,7 @@ impl Inner {
     #[cfg(feature = "use_tokio")]
     async fn do_sync(&self, client: &Client) {
         let request = client
-            .request(Method::GET, self.remote_url.clone())
+            .request(Method::GET, self.toggles_url.clone())
             .header(AUTHORIZATION, self.auth.clone())
             .timeout(self.refresh_interval);
 
@@ -124,7 +124,7 @@ impl Inner {
     #[cfg(feature = "use_std")]
     fn do_sync(&self) {
         //TODO: report failure
-        match ureq::get(self.remote_url.as_str())
+        match ureq::get(self.toggles_url.as_str())
             .set(
                 "authorization",
                 self.auth.to_str().expect("already valid header value"),
@@ -173,13 +173,13 @@ mod tests {
     }
 
     fn build_synchronizer(port: u16) -> Synchronizer {
-        let remote_url =
+        let toggles_url =
             Url::parse(&format!("http://127.0.0.1:{}/api/server-sdk/toggles", port)).unwrap();
         let refresh_interval = Duration::from_secs(10);
         let auth = SdkAuthorization("sdk-key".to_owned()).encode();
         Synchronizer {
             inner: Arc::new(Inner {
-                remote_url,
+                toggles_url,
                 refresh_interval,
                 auth,
                 #[cfg(feature = "use_tokio")]

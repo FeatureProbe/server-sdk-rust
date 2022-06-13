@@ -334,7 +334,7 @@ impl Condition {
                 "does not contain" => !self.match_string_condition(user, "contains"),
                 "does not match regex" => !self.match_string_condition(user, "matches regex"),
                 _ => {
-                    info!("unkown predicate {}", predicate);
+                    info!("unknown predicate {}", predicate);
                     false
                 }
             };
