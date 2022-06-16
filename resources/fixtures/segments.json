@@ -10,7 +10,7 @@
             {
               "type": "string",
               "subject": "city",
-              "predicate": "in",
+              "predicate": "is in",
               "objects": [
                 "4"
               ]

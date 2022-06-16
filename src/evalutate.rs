@@ -301,7 +301,9 @@ impl Condition {
     pub fn meet(&self, user: &FPUser, segment_repo: Option<&HashMap<String, Segment>>) -> bool {
         match &self.r#type {
             ConditionType::String => self.match_string_condition(user, &self.predicate),
-            ConditionType::Segment => self.match_segment_condition(user, segment_repo),
+            ConditionType::Segment => {
+                self.match_segment_condition(user, &self.predicate, segment_repo)
+            }
             _ => false,
         }
     }
@@ -309,11 +311,16 @@ impl Condition {
     fn match_segment_condition(
         &self,
         user: &FPUser,
+        predicate: &str,
         segment_repo: Option<&HashMap<String, Segment>>,
     ) -> bool {
         match segment_repo {
             None => false,
-            Some(repo) => self.user_in_segments(user, repo),
+            Some(repo) => match predicate {
+                "is in" => self.user_in_segments(user, repo),
+                "is not in" => !self.user_in_segments(user, repo),
+                _ => false,
+            },
         }
     }
 
@@ -451,6 +458,23 @@ mod tests {
         let r = r.unwrap();
         let r = r.as_object().unwrap();
         assert!(r.get("variation_1").is_some());
+    }
+
+    #[test]
+    fn test_not_in_segment_condition() {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("resources/fixtures/repo.json");
+        let json_str = fs::read_to_string(path).unwrap();
+        let repo = load_json(&json_str);
+        assert!(repo.is_ok());
+        let repo = repo.unwrap();
+
+        let user = FPUser::new("key11").with("city", "100");
+        let toggle = repo.toggles.get("not_in_segment").unwrap();
+        let r = toggle.eval(&user, &repo.segments);
+        let r = r.unwrap();
+        let r = r.as_object().unwrap();
+        assert!(r.get("not_in").is_some());
     }
 
     #[test]

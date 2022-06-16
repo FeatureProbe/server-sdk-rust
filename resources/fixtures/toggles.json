@@ -43,7 +43,7 @@
                         {
                             "type": "string",
                             "subject": "city",
-                            "predicate": "in",
+                            "predicate": "is one of",
                             "objects": [
                                 "1",
                                 "2",
@@ -60,7 +60,7 @@
                         {
                             "type": "segment",
                             "subject": "user",
-                            "predicate": "in",
+                            "predicate": "is in",
                             "object": ["some_segment1-fjoaefjaam"]
                         }
                     ]
@@ -99,7 +99,7 @@
                         {
                             "type": "string",
                             "subject": "city",
-                            "predicate": "in",
+                            "predicate": "is one of",
                             "objects": [
                                 "1",
                                 "2",
@@ -109,7 +109,7 @@
                         {
                             "type": "string",
                             "subject": "os",
-                            "predicate": "in",
+                            "predicate": "is one of",
                             "objects": [
                                 "mac",
                                 "linux"

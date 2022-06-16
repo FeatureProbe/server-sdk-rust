@@ -58,7 +58,7 @@
             {
               "type": "segment",
               "subject": "user",
-              "predicate": "in",
+              "predicate": "is in",
               "objects": [
                 "some_segment1-fjoaefjaam"
               ]
@@ -108,7 +108,7 @@
             {
               "type": "segment",
               "subject": "user",
-              "predicate": "in",
+              "predicate": "is in",
               "objects": [
                 "some_segment1-fjoaefjaam"
               ]
@@ -158,7 +158,7 @@
             {
               "type": "segment",
               "subject": "user",
-              "predicate": "in",
+              "predicate": "is in",
               "objects": [
                 "some_segment1-fjoaefjaam"
               ]
@@ -230,7 +230,7 @@
             {
               "type": "segment",
               "subject": "user",
-              "predicate": "in",
+              "predicate": "is in",
               "objects": [
                 "some_segment1-fjoaefjaam"
               ]
@@ -334,6 +334,41 @@
         {},
         {
           "disabled_key": "disabled_value"
+        }
+      ]
+    },
+    "not_in_segment": {
+      "key": "not_in_segment",
+      "enabled": true,
+      "forClient": false,
+      "version": 1,
+      "disabledServe": {
+        "select": 0
+      },
+      "defaultServe": {
+        "select": 0
+      },
+      "rules": [
+        {
+          "serve": {
+            "select": 1
+          },
+          "conditions": [
+            {
+              "type": "segment",
+              "subject": "user",
+              "predicate": "is not in",
+              "objects": [
+                "some_segment1-fjoaefjaam"
+              ]
+            }
+          ]
+        }
+      ],
+      "variations": [
+        {},
+        {
+          "not_in": true
         }
       ]
     }
