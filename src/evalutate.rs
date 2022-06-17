@@ -292,6 +292,7 @@ enum ConditionType {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 struct Condition {
     r#type: ConditionType,
+    #[serde(default)]
     subject: String,
     predicate: String,
     objects: Vec<String>,
@@ -994,5 +995,20 @@ mod string_condition_tests {
         let r = r.unwrap();
         let r = r.as_object().unwrap();
         assert!(r.get("variation_0").is_some());
+    }
+
+    #[test]
+    fn test_segment_condition() {
+        let json_str = r#"
+        {
+            "type":"segment",
+            "predicate":"is in",
+            "objects":[ "segment1","segment2"]
+        }
+        "#;
+
+        let segment = serde_json::from_str::<Condition>(json_str)
+            .map_err(|e| FPError::JsonError(e.to_string()));
+        assert!(segment.is_ok())
     }
 }
