@@ -9,12 +9,13 @@ pub use crate::user::FPUser;
 use headers::{Error, Header, HeaderName, HeaderValue};
 use http::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use thiserror::Error;
 pub use url::Url;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct FPDetail<T: Default> {
+pub struct FPDetail<T: Default + Debug> {
     pub value: T,
     pub rule_index: Option<usize>,
     pub version: Option<u64>,

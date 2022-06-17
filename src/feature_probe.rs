@@ -29,6 +29,7 @@ use crate::evalutate::Toggle;
 use reqwest::Client;
 #[cfg(feature = "internal")]
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 #[derive(Debug, Default, Clone)]
 pub struct FeatureProbe {
@@ -101,7 +102,7 @@ impl FeatureProbe {
         }
     }
 
-    fn generic_detail<T: Default>(
+    fn generic_detail<T: Default + Debug>(
         &self,
         toggle: &str,
         user: &FPUser,
@@ -361,6 +362,9 @@ mod tests {
         let u = FPUser::new("key");
 
         assert!(fp.bool_value("none_exist_toggle", &u, true));
+        let d = fp.bool_detail("none_exist_toggle", &u, true);
+        assert_eq!(d.value, true);
+        assert_eq!(d.rule_index, None);
     }
 
     fn load_local_json(file: &str) -> Result<Repository, FPError> {
@@ -378,6 +382,7 @@ mod server_sdk_contract_tests {
     use crate::{FPDetail, FPError, FPUser, FeatureProbe, Repository};
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
+    use std::fmt::Debug;
     use std::fs;
     use std::path::PathBuf;
     use std::string::String;
@@ -430,11 +435,11 @@ mod server_sdk_contract_tests {
     }
 
     #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
+    #[serde(rename_all = "camelCase")]
     pub struct ExpectResult {
         pub(crate) value: Value,
         pub(crate) reason: Option<String>,
         pub(crate) rule_index: Option<usize>,
-        pub(crate) condition_index: Option<usize>,
         pub(crate) no_rule_index: Option<bool>,
         pub(crate) version: Option<u64>,
     }
@@ -535,7 +540,7 @@ mod server_sdk_contract_tests {
         }
     }
 
-    fn assert_detail<T: std::default::Default>(case: &Case, ret: FPDetail<T>) {
+    fn assert_detail<T: std::default::Default + Debug>(case: &Case, ret: FPDetail<T>) {
         match &case.expect_result.reason {
             None => (),
             Some(r) => {
