@@ -2,11 +2,12 @@ use crate::user::FPUser;
 use crate::FPError;
 use byteorder::{BigEndian, ReadBytesExt};
 use regex::Regex;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha1::Digest;
-use std::collections::HashMap;
 use std::string::String;
+use std::{collections::HashMap, str::FromStr};
 use tracing::{info, warn};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -286,7 +287,11 @@ impl Rule {
 enum ConditionType {
     String,
     Segment,
-    Date, // no implement
+    Date,
+    Number,
+    SemVer,
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -301,15 +306,16 @@ struct Condition {
 impl Condition {
     pub fn meet(&self, user: &FPUser, segment_repo: Option<&HashMap<String, Segment>>) -> bool {
         match &self.r#type {
-            ConditionType::String => self.match_string_condition(user, &self.predicate),
-            ConditionType::Segment => {
-                self.match_segment_condition(user, &self.predicate, segment_repo)
-            }
+            ConditionType::String => self.match_string(user, &self.predicate),
+            ConditionType::Segment => self.match_segment(user, &self.predicate, segment_repo),
+            ConditionType::Number => self.match_ordering::<f64>(user, &self.predicate),
+            ConditionType::SemVer => self.match_ordering::<Version>(user, &self.predicate),
+            ConditionType::Date => self.match_timestamp(user, &self.predicate),
             _ => false,
         }
     }
 
-    fn match_segment_condition(
+    fn match_segment(
         &self,
         user: &FPUser,
         predicate: &str,
@@ -325,22 +331,24 @@ impl Condition {
         }
     }
 
-    fn match_string_condition(&self, user: &FPUser, predicate: &str) -> bool {
-        if let Some(custom_value) = user.get(&self.subject) {
+    fn match_string(&self, user: &FPUser, predicate: &str) -> bool {
+        if let Some(c) = user.get(&self.subject) {
             return match predicate {
-                "is one of" => self.match_objects(|object| custom_value.eq(object)),
-                "ends with" => self.match_objects(|object| custom_value.ends_with(object)),
-                "starts with" => self.match_objects(|object| custom_value.starts_with(object)),
-                "contains" => self.match_objects(|object| custom_value.contains(object)),
-                "matches regex" => self.match_objects(|object| match Regex::new(object) {
-                    Ok(re) => re.is_match(custom_value),
-                    Err(_) => false, // invalid regex should be checked when load config
-                }),
-                "is not any of" => !self.match_string_condition(user, "is one of"),
-                "does not end with" => !self.match_string_condition(user, "ends with"),
-                "does not start with" => !self.match_string_condition(user, "starts with"),
-                "does not contain" => !self.match_string_condition(user, "contains"),
-                "does not match regex" => !self.match_string_condition(user, "matches regex"),
+                "is one of" => self.do_match::<String>(c, |c, o| c.eq(o)),
+                "ends with" => self.do_match::<String>(c, |c, o| c.ends_with(o)),
+                "starts with" => self.do_match::<String>(c, |c, o| c.starts_with(o)),
+                "contains" => self.do_match::<String>(c, |c, o| c.contains(o)),
+                "matches regex" => {
+                    self.do_match::<String>(c, |c, o| match Regex::new(o) {
+                        Ok(re) => re.is_match(c),
+                        Err(_) => false, // invalid regex should be checked when load config
+                    })
+                }
+                "is not any of" => !self.match_string(user, "is one of"),
+                "does not end with" => !self.match_string(user, "ends with"),
+                "does not start with" => !self.match_string(user, "starts with"),
+                "does not contain" => !self.match_string(user, "contains"),
+                "does not match regex" => !self.match_string(user, "matches regex"),
                 _ => {
                     info!("unknown predicate {}", predicate);
                     false
@@ -351,8 +359,56 @@ impl Condition {
         false
     }
 
-    fn match_objects(&self, f: impl Fn(&String) -> bool) -> bool {
-        self.objects.iter().map(f).any(|x| x)
+    fn match_ordering<T: FromStr + PartialOrd>(&self, user: &FPUser, predicate: &str) -> bool {
+        if let Some(c) = user.get(&self.subject) {
+            let c: T = match c.parse() {
+                Ok(v) => v,
+                Err(_) => return false,
+            };
+            return match predicate {
+                "=" => self.do_match::<T>(&c, |c, o| c.eq(o)),
+                "!=" => !self.match_ordering::<T>(user, "="),
+                ">" => self.do_match::<T>(&c, |c, o| c.gt(o)),
+                ">=" => self.do_match::<T>(&c, |c, o| c.ge(o)),
+                "<" => self.do_match::<T>(&c, |c, o| c.lt(o)),
+                "<=" => self.do_match::<T>(&c, |c, o| c.le(o)),
+                _ => {
+                    info!("unknown predicate {}", predicate);
+                    false
+                }
+            };
+        }
+        info!("user attr missing: {}", self.subject);
+        false
+    }
+
+    fn match_timestamp(&self, user: &FPUser, predicate: &str) -> bool {
+        if let Some(c) = user.get(&self.subject) {
+            let c: u64 = match c.parse() {
+                Ok(v) => v,
+                Err(_) => return false,
+            };
+            return match predicate {
+                ">=" => self.do_match::<u64>(&c, |c, o| c.ge(o)),
+                "<" => self.do_match::<u64>(&c, |c, o| c.lt(o)),
+                _ => {
+                    info!("unknown predicate {}", predicate);
+                    false
+                }
+            };
+        }
+        info!("user attr missing: {}", self.subject);
+        false
+    }
+
+    fn do_match<T: FromStr>(&self, t: &T, f: fn(&T, &T) -> bool) -> bool {
+        self.objects
+            .iter()
+            .map(|o| match o.parse::<T>() {
+                Ok(o) => f(t, &o),
+                Err(_) => false,
+            })
+            .any(|x| x)
     }
 
     fn user_in_segments(&self, user: &FPUser, repo: &HashMap<String, Segment>) -> bool {
@@ -675,6 +731,23 @@ mod string_condition_tests {
     use std::path::PathBuf;
 
     #[test]
+    fn test_unkown_condition() {
+        let json_str = r#"
+        {
+            "type": "new_type",
+            "subject": "new_subject",
+            "predicate": ">",
+            "objects": []
+        }
+        "#;
+
+        let condition = serde_json::from_str::<Condition>(&json_str);
+        assert!(condition.is_ok());
+        let condition = condition.unwrap();
+        assert_eq!(condition.r#type, ConditionType::Unknown);
+    }
+
+    #[test]
     fn test_match_is_one_of() {
         let condition = Condition {
             r#type: ConditionType::String,
@@ -684,7 +757,7 @@ mod string_condition_tests {
         };
 
         let user = FPUser::new(String::from("not care")).with("name", "world");
-        assert!(condition.match_string_condition(&user, &condition.predicate));
+        assert!(condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -698,7 +771,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "not_in");
 
-        assert!(!condition.match_string_condition(&user, &condition.predicate));
+        assert!(!condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -712,7 +785,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care"));
 
-        assert!(!condition.match_string_condition(&user, &condition.predicate));
+        assert!(!condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -725,7 +798,7 @@ mod string_condition_tests {
         };
 
         let user = FPUser::new(String::from("not care")).with("name", "welcome");
-        assert!(condition.match_string_condition(&user, &condition.predicate));
+        assert!(condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -739,7 +812,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "not_in");
 
-        assert!(condition.match_string_condition(&user, &condition.predicate));
+        assert!(condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -753,7 +826,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "bob world");
 
-        assert!(condition.match_string_condition(&user, &condition.predicate));
+        assert!(condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -767,7 +840,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "bob");
 
-        assert!(!condition.match_string_condition(&user, &condition.predicate));
+        assert!(!condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -781,7 +854,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "bob");
 
-        assert!(condition.match_string_condition(&user, &condition.predicate));
+        assert!(condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -795,7 +868,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "bob world");
 
-        assert!(!condition.match_string_condition(&user, &condition.predicate));
+        assert!(!condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -809,7 +882,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "world bob");
 
-        assert!(condition.match_string_condition(&user, &condition.predicate));
+        assert!(condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -823,7 +896,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "bob");
 
-        assert!(!condition.match_string_condition(&user, &condition.predicate));
+        assert!(!condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -837,7 +910,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "bob");
 
-        assert!(condition.match_string_condition(&user, &condition.predicate));
+        assert!(condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -851,7 +924,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "world bob");
 
-        assert!(!condition.match_string_condition(&user, &condition.predicate));
+        assert!(!condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -865,7 +938,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "alice world bob");
 
-        assert!(condition.match_string_condition(&user, &condition.predicate));
+        assert!(condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -879,7 +952,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "alice bob");
 
-        assert!(!condition.match_string_condition(&user, &condition.predicate));
+        assert!(!condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -893,7 +966,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "alice bob");
 
-        assert!(condition.match_string_condition(&user, &condition.predicate));
+        assert!(condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -907,7 +980,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "alice world bob");
 
-        assert!(!condition.match_string_condition(&user, &condition.predicate));
+        assert!(!condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -921,7 +994,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "alice world bob");
 
-        assert!(condition.match_string_condition(&user, &condition.predicate));
+        assert!(condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -935,7 +1008,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "alice orld bob hello3");
 
-        assert!(condition.match_string_condition(&user, &condition.predicate));
+        assert!(condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -949,7 +1022,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "alice orld bob hello");
 
-        assert!(!condition.match_string_condition(&user, &condition.predicate));
+        assert!(!condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -963,7 +1036,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "alice orld bob hello");
 
-        assert!(condition.match_string_condition(&user, &condition.predicate));
+        assert!(condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
@@ -977,7 +1050,7 @@ mod string_condition_tests {
 
         let user = FPUser::new(String::from("not care")).with("name", "\\\\\\");
 
-        assert!(!condition.match_string_condition(&user, &condition.predicate));
+        assert!(!condition.match_string(&user, &condition.predicate));
     }
 
     #[test]
