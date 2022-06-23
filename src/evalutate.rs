@@ -288,7 +288,7 @@ impl Rule {
 enum ConditionType {
     String,
     Segment,
-    Date,
+    Datetime,
     Number,
     SemVer,
     #[serde(other)]
@@ -311,7 +311,7 @@ impl Condition {
             ConditionType::Segment => self.match_segment(user, &self.predicate, segment_repo),
             ConditionType::Number => self.match_ordering::<f64>(user, &self.predicate),
             ConditionType::SemVer => self.match_ordering::<Version>(user, &self.predicate),
-            ConditionType::Date => self.match_timestamp(&self.predicate),
+            ConditionType::Datetime => self.match_timestamp(user, &self.predicate),
             _ => false,
         }
     }
@@ -383,8 +383,14 @@ impl Condition {
         false
     }
 
-    fn match_timestamp(&self, predicate: &str) -> bool {
-        let c = unix_timestamp() / 1000;
+    fn match_timestamp(&self, user: &FPUser, predicate: &str) -> bool {
+        let c: u128 = match user.get(&self.subject) {
+            Some(v) => match v.parse() {
+                Ok(v) => v,
+                Err(_) => return false,
+            },
+            None => unix_timestamp() / 1000,
+        };
         return match predicate {
             "after" => self.do_match::<u128>(&c, |c, o| c.ge(o)),
             "before" => self.do_match::<u128>(&c, |c, o| c.lt(o)),
@@ -1202,20 +1208,25 @@ mod condition_tests {
     }
 
     #[test]
-    fn test_date_condition() {
+    fn test_datetime_condition() {
         let now_ts = unix_timestamp() / 1000;
         let mut condition = Condition {
-            r#type: ConditionType::Date,
-            subject: "".to_owned(),
+            r#type: ConditionType::Datetime,
+            subject: "ts".to_owned(),
             objects: vec![format!("{}", now_ts)],
             predicate: "after".to_owned(),
         };
 
         let user = FPUser::new("user");
         assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("ts".to_owned(), format!("{}", now_ts));
+        assert!(condition.meet(&user, None));
 
         condition.predicate = "before".to_owned();
         condition.objects = vec![format!("{}", now_ts + 2)];
-        assert!(condition.meet(&user, None))
+        assert!(condition.meet(&user, None));
+
+        let user = FPUser::new("user").with("ts".to_owned(), "a".to_owned());
+        assert!(!condition.meet(&user, None));
     }
 }
