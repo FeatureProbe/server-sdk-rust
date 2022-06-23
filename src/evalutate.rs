@@ -1,3 +1,4 @@
+use crate::unix_timestamp;
 use crate::user::FPUser;
 use crate::FPError;
 use byteorder::{BigEndian, ReadBytesExt};
@@ -310,7 +311,7 @@ impl Condition {
             ConditionType::Segment => self.match_segment(user, &self.predicate, segment_repo),
             ConditionType::Number => self.match_ordering::<f64>(user, &self.predicate),
             ConditionType::SemVer => self.match_ordering::<Version>(user, &self.predicate),
-            ConditionType::Date => self.match_timestamp(user, &self.predicate),
+            ConditionType::Date => self.match_timestamp(&self.predicate),
             _ => false,
         }
     }
@@ -382,23 +383,16 @@ impl Condition {
         false
     }
 
-    fn match_timestamp(&self, user: &FPUser, predicate: &str) -> bool {
-        if let Some(c) = user.get(&self.subject) {
-            let c: u64 = match c.parse() {
-                Ok(v) => v,
-                Err(_) => return false,
-            };
-            return match predicate {
-                ">=" => self.do_match::<u64>(&c, |c, o| c.ge(o)),
-                "<" => self.do_match::<u64>(&c, |c, o| c.lt(o)),
-                _ => {
-                    info!("unknown predicate {}", predicate);
-                    false
-                }
-            };
-        }
-        info!("user attr missing: {}", self.subject);
-        false
+    fn match_timestamp(&self, predicate: &str) -> bool {
+        let c = unix_timestamp() / 1000;
+        return match predicate {
+            "after" => self.do_match::<u128>(&c, |c, o| c.ge(o)),
+            "before" => self.do_match::<u128>(&c, |c, o| c.lt(o)),
+            _ => {
+                info!("unknown predicate {}", predicate);
+                false
+            }
+        };
     }
 
     fn do_match<T: FromStr>(&self, t: &T, f: fn(&T, &T) -> bool) -> bool {
@@ -725,7 +719,7 @@ mod distribution_tests {
 }
 
 #[cfg(test)]
-mod string_condition_tests {
+mod condition_tests {
     use super::*;
     use std::fs;
     use std::path::PathBuf;
@@ -1071,7 +1065,7 @@ mod string_condition_tests {
     }
 
     #[test]
-    fn test_segment_condition() {
+    fn test_segment_deserilize() {
         let json_str = r#"
         {
             "type":"segment",
@@ -1083,5 +1077,145 @@ mod string_condition_tests {
         let segment = serde_json::from_str::<Condition>(json_str)
             .map_err(|e| FPError::JsonError(e.to_string()));
         assert!(segment.is_ok())
+    }
+
+    #[test]
+    fn test_semver_condition() {
+        let mut condition = Condition {
+            r#type: ConditionType::SemVer,
+            subject: "version".to_owned(),
+            objects: vec!["1.0.0".to_owned(), "2.0.0".to_owned()],
+            predicate: "=".to_owned(),
+        };
+
+        let user = FPUser::new("user").with("version".to_owned(), "1.0.0".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("version".to_owned(), "2.0.0".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("version".to_owned(), "3.0.0".to_owned());
+        assert!(!condition.meet(&user, None));
+
+        condition.predicate = "!=".to_owned();
+        let user = FPUser::new("user").with("version".to_owned(), "1.0.0".to_owned());
+        assert!(!condition.meet(&user, None));
+        let user = FPUser::new("user").with("version".to_owned(), "2.0.0".to_owned());
+        assert!(!condition.meet(&user, None));
+        let user = FPUser::new("user").with("version".to_owned(), "0.1.0".to_owned());
+        assert!(condition.meet(&user, None));
+
+        condition.predicate = ">".to_owned();
+        let user = FPUser::new("user").with("version".to_owned(), "2.0.0".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("version".to_owned(), "3.0.0".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("version".to_owned(), "0.1.0".to_owned());
+        assert!(!condition.meet(&user, None));
+
+        condition.predicate = ">=".to_owned();
+        let user = FPUser::new("user").with("version".to_owned(), "1.0.0".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("version".to_owned(), "2.0.0".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("version".to_owned(), "3.0.0".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("version".to_owned(), "0.1.0".to_owned());
+        assert!(!condition.meet(&user, None));
+
+        condition.predicate = "<".to_owned();
+        let user = FPUser::new("user").with("version".to_owned(), "1.0.0".to_owned()); // < 2.0.0
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("version".to_owned(), "2.0.0".to_owned());
+        assert!(!condition.meet(&user, None));
+        let user = FPUser::new("user").with("version".to_owned(), "3.0.0".to_owned());
+        assert!(!condition.meet(&user, None));
+
+        condition.predicate = "<=".to_owned();
+        let user = FPUser::new("user").with("version".to_owned(), "1.0.0".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("version".to_owned(), "2.0.0".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("version".to_owned(), "0.1.0".to_owned());
+        assert!(condition.meet(&user, None));
+
+        let user = FPUser::new("user").with("version".to_owned(), "a".to_owned());
+        assert!(!condition.meet(&user, None));
+    }
+
+    #[test]
+    fn test_number_condition() {
+        let mut condition = Condition {
+            r#type: ConditionType::Number,
+            subject: "price".to_owned(),
+            objects: vec!["10".to_owned(), "100".to_owned()],
+            predicate: "=".to_owned(),
+        };
+
+        let user = FPUser::new("user").with("price".to_owned(), "10".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("price".to_owned(), "100".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("price".to_owned(), "0".to_owned());
+        assert!(!condition.meet(&user, None));
+
+        condition.predicate = "!=".to_owned();
+        let user = FPUser::new("user").with("price".to_owned(), "10".to_owned());
+        assert!(!condition.meet(&user, None));
+        let user = FPUser::new("user").with("price".to_owned(), "100".to_owned());
+        assert!(!condition.meet(&user, None));
+        let user = FPUser::new("user").with("price".to_owned(), "0".to_owned());
+        assert!(condition.meet(&user, None));
+
+        condition.predicate = ">".to_owned();
+        let user = FPUser::new("user").with("price".to_owned(), "11".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("price".to_owned(), "10".to_owned());
+        assert!(!condition.meet(&user, None));
+
+        condition.predicate = ">=".to_owned();
+        let user = FPUser::new("user").with("price".to_owned(), "10".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("price".to_owned(), "11".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("price".to_owned(), "100".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("price".to_owned(), "0".to_owned());
+        assert!(!condition.meet(&user, None));
+
+        condition.predicate = "<".to_owned();
+        let user = FPUser::new("user").with("price".to_owned(), "1".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("price".to_owned(), "10".to_owned()); // < 100
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("price".to_owned(), "100".to_owned()); // < 100
+        assert!(!condition.meet(&user, None));
+
+        condition.predicate = "<=".to_owned();
+        let user = FPUser::new("user").with("price".to_owned(), "1".to_owned());
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("price".to_owned(), "10".to_owned()); // < 100
+        assert!(condition.meet(&user, None));
+        let user = FPUser::new("user").with("price".to_owned(), "100".to_owned()); // < 100
+        assert!(condition.meet(&user, None));
+
+        let user = FPUser::new("user").with("price".to_owned(), "a".to_owned());
+        assert!(!condition.meet(&user, None));
+    }
+
+    #[test]
+    fn test_date_condition() {
+        let now_ts = unix_timestamp() / 1000;
+        let mut condition = Condition {
+            r#type: ConditionType::Date,
+            subject: "".to_owned(),
+            objects: vec![format!("{}", now_ts)],
+            predicate: "after".to_owned(),
+        };
+
+        let user = FPUser::new("user");
+        assert!(condition.meet(&user, None));
+
+        condition.predicate = "before".to_owned();
+        condition.objects = vec![format!("{}", now_ts + 2)];
+        assert!(condition.meet(&user, None))
     }
 }

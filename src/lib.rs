@@ -70,6 +70,13 @@ impl Header for SdkAuthorization {
     }
 }
 
+pub fn unix_timestamp() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("Time went backwards!")
+        .as_millis()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
