@@ -290,7 +290,7 @@ enum ConditionType {
     Segment,
     Datetime,
     Number,
-    SemVer,
+    Semver,
     #[serde(other)]
     Unknown,
 }
@@ -310,7 +310,7 @@ impl Condition {
             ConditionType::String => self.match_string(user, &self.predicate),
             ConditionType::Segment => self.match_segment(user, &self.predicate, segment_repo),
             ConditionType::Number => self.match_ordering::<f64>(user, &self.predicate),
-            ConditionType::SemVer => self.match_ordering::<Version>(user, &self.predicate),
+            ConditionType::Semver => self.match_ordering::<Version>(user, &self.predicate),
             ConditionType::Datetime => self.match_timestamp(user, &self.predicate),
             _ => false,
         }
@@ -1088,7 +1088,7 @@ mod condition_tests {
     #[test]
     fn test_semver_condition() {
         let mut condition = Condition {
-            r#type: ConditionType::SemVer,
+            r#type: ConditionType::Semver,
             subject: "version".to_owned(),
             objects: vec!["1.0.0".to_owned(), "2.0.0".to_owned()],
             predicate: "=".to_owned(),
