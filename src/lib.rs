@@ -8,10 +8,17 @@ pub use crate::feature_probe::{FPConfig, FeatureProbe};
 pub use crate::user::FPUser;
 use headers::{Error, Header, HeaderName, HeaderValue};
 use http::header::AUTHORIZATION;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use thiserror::Error;
 pub use url::Url;
+
+lazy_static! {
+    pub(crate) static ref USER_AGENT: String = "Rust/".to_owned() + VERSION;
+}
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]

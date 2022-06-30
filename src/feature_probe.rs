@@ -199,7 +199,13 @@ impl FeatureProbe {
         };
         let flush_interval = self.config.refresh_interval;
         let auth = SdkAuthorization(self.config.server_sdk_key.clone()).encode();
-        let event_recorder = EventRecorder::new(events_url, auth, flush_interval, 100);
+        let event_recorder = EventRecorder::new(
+            events_url,
+            auth,
+            (*crate::USER_AGENT).clone(),
+            flush_interval,
+            100,
+        );
         self.event_recorder = Some(event_recorder);
         Ok(())
     }

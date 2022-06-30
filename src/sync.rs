@@ -97,9 +97,12 @@ impl Synchronizer {
 impl Inner {
     #[cfg(feature = "use_tokio")]
     async fn do_sync(&self, client: &Client) {
+        use http::header::USER_AGENT;
+
         let request = client
             .request(Method::GET, self.toggles_url.clone())
             .header(AUTHORIZATION, self.auth.clone())
+            .header(USER_AGENT, &*crate::USER_AGENT)
             .timeout(self.refresh_interval);
 
         //TODO: report failure
@@ -129,6 +132,7 @@ impl Inner {
                 "authorization",
                 self.auth.to_str().expect("already valid header value"),
             )
+            .set("user-agent", &*crate::USER_AGENT)
             .timeout(self.refresh_interval)
             .call()
         {
