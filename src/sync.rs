@@ -160,6 +160,7 @@ mod tests {
     use super::*;
     use crate::SdkAuthorization;
     use axum::{routing::get, Json, Router, TypedHeader};
+    use headers::UserAgent;
     use std::{fs, net::SocketAddr, path::PathBuf};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -206,8 +207,11 @@ mod tests {
 
     async fn server_sdk_toggles(
         TypedHeader(SdkAuthorization(sdk_key)): TypedHeader<SdkAuthorization>,
+        TypedHeader(user_agent): TypedHeader<UserAgent>,
     ) -> Json<Repository> {
         assert_eq!(sdk_key, "sdk-key");
+        assert!(user_agent.to_string().len() > 0);
+        println!(">>> {}", user_agent);
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push("resources/fixtures/repo.json");
         let json_str = fs::read_to_string(path).unwrap();

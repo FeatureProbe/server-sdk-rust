@@ -154,7 +154,7 @@ impl FeatureProbe {
             time: unix_timestamp(),
             key: toggle.to_owned(),
             value: value.clone(),
-            index: detail.rule_index,
+            index: detail.variation_index,
             version: detail.version,
             reason: detail.reason.clone(),
         });

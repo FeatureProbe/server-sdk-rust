@@ -18,8 +18,14 @@ pub enum Serve {
     Split(Distribution),
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Variation {
+    pub value: Value,
+    pub index: usize,
+}
+
 impl Serve {
-    pub fn select_variation(&self, eval_param: &EvalParams) -> Result<Value, FPError> {
+    pub fn select_variation(&self, eval_param: &EvalParams) -> Result<Variation, FPError> {
         let variations = eval_param.variations;
         let index = match self {
             Serve::Select(i) => *i,
@@ -33,8 +39,16 @@ impl Serve {
                 variations.len()
             ))),
             None => Err(FPError::EvalError),
-            Some(v) => Ok(v.clone()),
+            Some(v) => Ok(Variation {
+                value: v.clone(),
+                index,
+            }),
         }
+    }
+
+    pub fn select_variation_value(&self, eval_param: &EvalParams) -> Result<Value, FPError> {
+        let v = self.select_variation(eval_param)?;
+        Ok(v.value)
     }
 }
 
@@ -119,6 +133,7 @@ pub struct EvalParams<'a> {
 pub struct EvalDetail<T> {
     pub value: Option<T>,
     pub rule_index: Option<usize>,
+    pub variation_index: Option<usize>,
     pub version: Option<u64>,
     pub reason: String,
 }
@@ -151,16 +166,16 @@ impl Toggle {
         };
 
         if !self.enabled {
-            return self.disabled_serve.select_variation(&eval_param);
+            return self.disabled_serve.select_variation_value(&eval_param);
         }
 
         for rule in &self.rules {
-            if let Some(value) = rule.serve_variation(&eval_param)? {
-                return Ok(value);
+            if let Some(v) = rule.serve_variation(&eval_param)? {
+                return Ok(v.value);
             }
         }
 
-        self.default_serve.select_variation(&eval_param)
+        self.default_serve.select_variation_value(&eval_param)
     }
 
     pub fn eval_detail(
@@ -176,8 +191,10 @@ impl Toggle {
             variations: &self.variations,
         };
         if !self.enabled {
+            let v = self.disabled_serve.select_variation(&eval_param).ok();
             return EvalDetail {
-                value: self.disabled_serve.select_variation(&eval_param).ok(),
+                variation_index: v.as_ref().map(|v| v.index),
+                value: v.map(|v| v.value),
                 version: Some(self.version),
                 reason: "disabled".to_owned(),
                 ..Default::default()
@@ -188,7 +205,8 @@ impl Toggle {
                 Ok(opt_value) => {
                     if let Some(v) = opt_value {
                         return EvalDetail {
-                            value: Some(v),
+                            value: Some(v.value),
+                            variation_index: Some(v.index),
                             rule_index: Some(i),
                             version: Some(self.version),
                             reason: format!("rule {}", i),
@@ -209,7 +227,8 @@ impl Toggle {
 
         match self.default_serve.select_variation(&eval_param) {
             Ok(v) => EvalDetail {
-                value: Some(v),
+                value: Some(v.value),
+                variation_index: Some(v.index),
                 version: Some(self.version),
                 reason: "default.".to_owned(),
                 ..Default::default()
@@ -269,7 +288,7 @@ struct Rule {
 }
 
 impl Rule {
-    pub fn serve_variation(&self, eval_param: &EvalParams) -> Result<Option<Value>, FPError> {
+    pub fn serve_variation(&self, eval_param: &EvalParams) -> Result<Option<Variation>, FPError> {
         let user = eval_param.user;
         let segment_repo = eval_param.segment_repo;
         match self

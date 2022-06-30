@@ -551,9 +551,9 @@ checksum = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
 
 [[package]]
 name = "feature-probe-event"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5afe573f6767d06070349abebdca3eceb11ba547a8feaf22ec2ec3f755fe66af"
+checksum = "9565a30ac05b601a0e990f8110ecbc9f22f45f1be6c342574f2211298e493223"
 dependencies = [
  "axum",
  "headers",
@@ -570,9 +570,9 @@ dependencies = [
 
 [[package]]
 name = "feature-probe-server"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "368f3b9cf6ac010da2e552d9336c03ee42bf768b5391008270331b9d340c1354"
+checksum = "97f05d0d4f0ba07425543c78c9dc85a8fd482b49f5060a3f144eeec084ea9421"
 dependencies = [
  "anyhow",
  "axum",
@@ -580,7 +580,7 @@ dependencies = [
  "base64",
  "config",
  "feature-probe-event",
- "feature-probe-server-sdk 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "feature-probe-server-sdk 1.0.4",
  "futures",
  "log",
  "parking_lot",
@@ -600,6 +600,33 @@ dependencies = [
 [[package]]
 name = "feature-probe-server-sdk"
 version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afecf40b52f21955d29c8b366e299195dd24d44369133f24274065f7c92f9157"
+dependencies = [
+ "anyhow",
+ "byteorder",
+ "dashmap",
+ "headers",
+ "http",
+ "lazy_static",
+ "minstant",
+ "parking_lot",
+ "rand",
+ "regex",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha1",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "feature-probe-server-sdk"
+version = "1.0.5"
 dependencies = [
  "anyhow",
  "approx",
@@ -629,33 +656,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "ureq",
- "url",
-]
-
-[[package]]
-name = "feature-probe-server-sdk"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afecf40b52f21955d29c8b366e299195dd24d44369133f24274065f7c92f9157"
-dependencies = [
- "anyhow",
- "byteorder",
- "dashmap",
- "headers",
- "http",
- "lazy_static",
- "minstant",
- "parking_lot",
- "rand",
- "regex",
- "reqwest",
- "semver",
- "serde",
- "serde_json",
- "sha1",
- "thiserror",
- "tokio",
- "tracing",
  "url",
 ]
 
