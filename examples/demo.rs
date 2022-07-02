@@ -12,10 +12,11 @@ async fn main() {
 
     let remote_url = "http://localhost:4007";
     let server_sdk_key = "server-8ed48815ef044428826787e9a238b9c6a479f98c";
+    let interval = Duration::from_millis(100);
     let config = FPConfig {
         remote_url: remote_url.to_owned(),
         server_sdk_key: server_sdk_key.to_owned(),
-        refresh_interval: Duration::from_secs(5),
+        refresh_interval: interval,
         #[cfg(feature = "use_tokio")]
         http_client: None,
         wait_first_resp: true,
@@ -36,7 +37,7 @@ async fn main() {
 
     let detail = fp.number_detail("promotion_activity", &user, 9.0);
     println!("       => reason : {:?}", detail.reason);
-    println!("       => index  : {:?}", detail.rule_index);
+    println!("       => rule index  : {:?}", detail.rule_index);
 
     let user2 = FPUser::new("user_id").with("city", "New York");
     let discount2 = fp.number_value("promotion_activity", &user2, 9.0);
@@ -44,4 +45,6 @@ async fn main() {
         "Result => discount for user in New York is : {:?}",
         discount2
     );
+
+    tokio::time::sleep(interval).await;
 }
