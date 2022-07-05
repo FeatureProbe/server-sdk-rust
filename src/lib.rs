@@ -25,6 +25,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub struct FPDetail<T: Default + Debug> {
     pub value: T,
     pub rule_index: Option<usize>,
+    pub variation_index: Option<usize>,
     pub version: Option<u64>,
     pub reason: String,
 }

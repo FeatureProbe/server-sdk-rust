@@ -128,6 +128,7 @@ impl FeatureProbe {
             value,
             reason: reason.unwrap_or(detail.reason),
             rule_index: detail.rule_index,
+            variation_index: detail.variation_index,
             version: detail.version,
         }
     }

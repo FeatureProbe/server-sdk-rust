@@ -12,7 +12,7 @@ async fn main() {
 
     let remote_url = "http://localhost:4007";
     let server_sdk_key = "server-8ed48815ef044428826787e9a238b9c6a479f98c";
-    let interval = Duration::from_millis(100);
+    let interval = Duration::from_millis(1000);
     let config = FPConfig {
         remote_url: remote_url.to_owned(),
         server_sdk_key: server_sdk_key.to_owned(),
