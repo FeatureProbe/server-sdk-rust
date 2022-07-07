@@ -1,7 +1,18 @@
+use parking_lot::RwLock;
+use serde_json::Value;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::sync::Arc;
+use std::time::Duration;
+use tracing::info;
+use url::Url;
+
+#[cfg(feature = "internal")]
+use crate::evalutate::Segment;
 use crate::evalutate::{EvalDetail, Repository};
 use crate::sync::Synchronizer;
 use crate::user::FPUser;
-use crate::{FPDetail, FPError, SdkAuthorization};
+use crate::{FPDetail, FPError, SdkAuthorization, Toggle};
 #[cfg(feature = "event")]
 use feature_probe_event_std::event::AccessEvent;
 #[cfg(feature = "event")]
@@ -14,22 +25,8 @@ use feature_probe_event_tokio::event::AccessEvent;
 use feature_probe_event_tokio::recorder::unix_timestamp;
 #[cfg(feature = "event_tokio")]
 use feature_probe_event_tokio::recorder::EventRecorder;
-use parking_lot::RwLock;
-use serde_json::Value;
-use std::sync::Arc;
-use std::time::Duration;
-use tracing::info;
-use url::Url;
-
-#[cfg(feature = "internal")]
-use crate::evalutate::Segment;
-#[cfg(feature = "internal")]
-use crate::evalutate::Toggle;
 #[cfg(feature = "use_tokio")]
 use reqwest::Client;
-#[cfg(feature = "internal")]
-use std::collections::HashMap;
-use std::fmt::Debug;
 
 #[derive(Debug, Default, Clone)]
 pub struct FeatureProbe {
@@ -51,6 +48,25 @@ impl FeatureProbe {
         match slf.start() {
             Ok(_) => Ok(slf),
             Err(e) => Err(e),
+        }
+    }
+
+    pub fn new_for_test(toggle: &str, value: Value) -> Self {
+        let mut toggles = HashMap::new();
+        toggles.insert(toggle.to_owned(), value);
+        FeatureProbe::new_for_tests(toggles)
+    }
+
+    pub fn new_for_tests(toggles: HashMap<String, Value>) -> Self {
+        let mut repo = Repository::default();
+        for (key, val) in toggles {
+            repo.toggles
+                .insert(key.clone(), Toggle::new_for_test(key, val));
+        }
+
+        Self {
+            repo: Arc::new(RwLock::new(repo)),
+            ..Default::default()
         }
     }
 
@@ -372,6 +388,20 @@ mod tests {
         let d = fp.bool_detail("none_exist_toggle", &u, true);
         assert_eq!(d.value, true);
         assert_eq!(d.rule_index, None);
+    }
+
+    #[test]
+    fn test_for_ut() {
+        let fp = FeatureProbe::new_for_test("toggle_1", Value::Bool(false));
+        let u = FPUser::new("key");
+        assert_eq!(fp.bool_value("toggle_1", &u, true), false);
+
+        let mut toggles: HashMap<String, Value> = HashMap::new();
+        toggles.insert("toggle_2".to_owned(), json!(12.5));
+        toggles.insert("toggle_3".to_owned(), json!("value"));
+        let fp = FeatureProbe::new_for_tests(toggles);
+        assert_eq!(fp.number_value("toggle_2", &u, 20.0), 12.5);
+        assert_eq!(fp.string_value("toggle_3", &u, "val".to_owned()), "value");
     }
 
     fn load_local_json(file: &str) -> Result<Repository, FPError> {

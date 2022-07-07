@@ -129,10 +129,10 @@ impl Inner {
         //TODO: report failure
         match ureq::get(self.toggles_url.as_str())
             .set(
-                "authorization",
+                "Authorization",
                 self.auth.to_str().expect("already valid header value"),
             )
-            .set("user-agent", &*crate::USER_AGENT)
+            .set("User-Agent", &*crate::USER_AGENT)
             .timeout(self.refresh_interval)
             .call()
         {
@@ -211,7 +211,6 @@ mod tests {
     ) -> Json<Repository> {
         assert_eq!(sdk_key, "sdk-key");
         assert!(user_agent.to_string().len() > 0);
-        println!(">>> {}", user_agent);
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push("resources/fixtures/repo.json");
         let json_str = fs::read_to_string(path).unwrap();

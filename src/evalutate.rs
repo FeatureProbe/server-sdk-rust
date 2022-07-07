@@ -258,6 +258,19 @@ impl Toggle {
         }
         sids
     }
+
+    pub fn new_for_test(key: String, val: Value) -> Self {
+        Self {
+            key,
+            enabled: true,
+            default_serve: Serve::Select(0),
+            disabled_serve: Serve::Select(0),
+            variations: vec![val],
+            version: 0,
+            for_client: false,
+            rules: vec![],
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
