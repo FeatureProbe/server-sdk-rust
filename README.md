@@ -67,7 +67,7 @@ if show_feature {
 }
 ```
 
-## Testing
+## Testing for sdk
 
 We have unified integration tests for all our SDKs. Integration test cases are added as submodules for each SDK repo. So
 be sure to pull submodules first to get the latest integration tests before running tests.
@@ -77,7 +77,25 @@ git pull --recurse-submodules
 cargo test
 ```
 
+## Testing for caller
+
+You could do unit testing for each variation:
+
+```rust
+let fp = FeatureProbe::new_for_test("toggle_1", Value::Bool(false));
+let u = FPUser::new("key");
+assert_eq!(fp.bool_value("toggle_1", &u, true), false);
+
+let mut toggles: HashMap<String, Value> = HashMap::new();
+toggles.insert("toggle_2".to_owned(), json!(12.5));
+toggles.insert("toggle_3".to_owned(), json!("value"));
+let fp = FeatureProbe::new_for_tests(toggles);
+assert_eq!(fp.number_value("toggle_2", &u, 20.0), 12.5);
+assert_eq!(fp.string_value("toggle_3", &u, "val".to_owned()), "value");
+```
+
 ## Contributing
+
 We are working on continue evolving FeatureProbe core, making it flexible and easier to use.
 Development of FeatureProbe happens in the open on GitHub, and we are grateful to the
 community for contributing bugfixes and improvements.
