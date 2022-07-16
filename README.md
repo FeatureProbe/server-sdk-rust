@@ -105,6 +105,8 @@ assert_eq!(fp.number_value("toggle_2", &u, 20.0), 12.5);
 assert_eq!(fp.string_value("toggle_3", &u, "val".to_owned()), "value");
 ```
 
+[Here is an example](https://github.com/FeatureProbe/server-sdk-rust/tree/main/examples)
+
 ## Testing SDK
 
 We have unified integration tests for all our SDKs. Integration test cases are added as submodules for each SDK repo. So
