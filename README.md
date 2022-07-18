@@ -83,6 +83,7 @@ let fp = FeatureProbe::new_for_tests(toggles);
 assert_eq!(fp.number_value("toggle_2", &u, 20.0), 12.5);
 assert_eq!(fp.string_value("toggle_3", &u, "val".to_owned()), "value");
 ```
+[Here is an example](https://github.com/FeatureProbe/server-sdk-rust/tree/main/examples)
 
 ## Testing SDK
 
