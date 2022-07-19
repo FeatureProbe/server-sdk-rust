@@ -8,7 +8,24 @@
 Feature Probe is an open source feature management service. This SDK is used to control features in rust programs. This
 SDK is designed primarily for use in multi-user systems such as web servers and applications.
 
-## Getting started
+## Try Out Demo Code
+
+We provide a runnable demo code for you to understand how FeatureProbe SDK is used.
+
+1. Start FeatureProbe Service with docker composer. [How to](https://github.com/FeatureProbe/FeatureProbe#1-starting-featureprobe-service-with-docker-compose)
+2. Download this repo and run the demo program:
+ ```bash
+ git clone https://github.com/FeatureProbe/server-sdk-rust.git
+ cd server-sdk-rust
+ cargo run --example demo
+ ```
+3. Find the Demo code in [examples](https://github.com/FeatureProbe/server-sdk-rust/tree/main/examples), 
+ do some change and run the program again.
+ ```bash
+ cargo run --example demo
+ ```
+
+## Step-by-Step Guide
 
 In this guide we explain how to use feature toggles in a Rust application using FeatureProbe.
 
@@ -83,7 +100,6 @@ let fp = FeatureProbe::new_for_tests(toggles);
 assert_eq!(fp.number_value("toggle_2", &u, 20.0), 12.5);
 assert_eq!(fp.string_value("toggle_3", &u, "val".to_owned()), "value");
 ```
-[Here is an example](https://github.com/FeatureProbe/server-sdk-rust/tree/main/examples)
 
 ## Testing SDK
 
