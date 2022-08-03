@@ -10,9 +10,10 @@ async fn main() {
     //     .with_env_filter("feature_probe_server_sdk=trace")
     //     .init();
 
-    let remote_url = "http://localhost:4007";
+    let remote_url = "https://featureprobe.io/server";
+    // let remote_url = "http://localhost:4007"; // for local docker
     let server_sdk_key = "server-8ed48815ef044428826787e9a238b9c6a479f98c";
-    let interval = Duration::from_millis(1000);
+    let interval = Duration::from_millis(2000);
     let config = FPConfig {
         remote_url: remote_url.to_owned(),
         server_sdk_key: server_sdk_key.to_owned(),

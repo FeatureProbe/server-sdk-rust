@@ -54,7 +54,7 @@ After you install and import the SDK, create a single, shared instance of the Fe
 
 ```rust
 fn main() {
-    let remote_url = "http://localhost:4007";
+    let remote_url = "https://featureprobe.io";
 
     let config = FPConfig {
         remote_url: remote_url.to_owned(),
@@ -78,13 +78,14 @@ fn main() {
 You can use sdk to check which variation a particular user will receive for a given feature flag.
 
 ```rust
-let user = FPUser::new("user@company.com").with("name", "bob");
-let show_feature = fp.bool_value("your.toggle.key", &user, false);
+let uniq_user_id = /* unique user id */
+let user = FPUser::new(uniq_user_id).with("name", "bob");
+let show_feature = fp.bool_value("bool_toggle", &user, false);
 
 if show_feature {
-    # application code to show the feature
+    // application code to show the feature
 } else {
-    # the code to run if the feature is off
+    // the code to run if the feature is off
 }
 ```
 
@@ -106,6 +107,12 @@ assert_eq!(fp.string_value("toggle_3", &u, "val".to_owned()), "value");
 ```
 
 [Here is an example](https://github.com/FeatureProbe/server-sdk-rust/tree/main/examples)
+
+## Rust Docs
+
+[Docs home](https://docs.rs/feature-probe-server-sdk/)
+
+[Main functions](https://docs.rs/feature-probe-server-sdk/latest/feature_probe_server_sdk/struct.FeatureProbe.html)
 
 ## Testing SDK
 
