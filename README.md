@@ -54,7 +54,8 @@ After you install and import the SDK, create a single, shared instance of the Fe
 
 ```rust
 fn main() {
-    let remote_url = "https://featureprobe.io";
+    let remote_url = "https://featureprobe.io/server";
+    // let remote_url = "http://localhost:4007"; // for local docker
 
     let config = FPConfig {
         remote_url: remote_url.to_owned(),
