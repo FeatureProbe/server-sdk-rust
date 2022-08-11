@@ -79,8 +79,8 @@ fn main() {
 You can use sdk to check which variation a particular user will receive for a given feature flag.
 
 ```rust
-let uniq_user_id = /* unique user id */
-let user = FPUser::new(uniq_user_id).with("name", "bob");
+let user_id = /* unique user id in your business logic */
+let user = FPUser::new(user_id).with("name", "bob");
 let show_feature = fp.bool_value("bool_toggle", &user, false);
 
 if show_feature {
