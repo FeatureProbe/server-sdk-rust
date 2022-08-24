@@ -551,9 +551,9 @@ checksum = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
 
 [[package]]
 name = "feature-probe-event"
-version = "1.0.4"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9565a30ac05b601a0e990f8110ecbc9f22f45f1be6c342574f2211298e493223"
+checksum = "a3710aaf416257e689306e097885967536d3ea79f947fac7efc1b441428205ff"
 dependencies = [
  "axum",
  "headers",
@@ -570,9 +570,9 @@ dependencies = [
 
 [[package]]
 name = "feature-probe-server"
-version = "1.0.4"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97f05d0d4f0ba07425543c78c9dc85a8fd482b49f5060a3f144eeec084ea9421"
+checksum = "7639f1842a4311ce3f6350bfd6e1f541cff019e5783b6cdbb173060e1af91d28"
 dependencies = [
  "anyhow",
  "axum",
@@ -580,7 +580,7 @@ dependencies = [
  "base64",
  "config",
  "feature-probe-event",
- "feature-probe-server-sdk 1.0.4",
+ "feature-probe-server-sdk 1.1.0",
  "futures",
  "log",
  "parking_lot",
@@ -599,9 +599,9 @@ dependencies = [
 
 [[package]]
 name = "feature-probe-server-sdk"
-version = "1.0.4"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afecf40b52f21955d29c8b366e299195dd24d44369133f24274065f7c92f9157"
+checksum = "7dde1d33077aab767578f7721272ce2058ae1fc6a1a637810c390b9d227e7d1c"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -626,7 +626,7 @@ dependencies = [
 
 [[package]]
 name = "feature-probe-server-sdk"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "approx",

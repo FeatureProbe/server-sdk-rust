@@ -44,7 +44,7 @@ impl Synchronizer {
     }
 
     #[cfg(feature = "use_std")]
-    pub fn sync(&self, wait_first_resp: bool) {
+    pub fn sync(&self, wait_first_resp: bool, should_stop: Arc<RwLock<bool>>) {
         let inner = self.inner.clone();
         if wait_first_resp {
             inner.do_sync()
@@ -55,13 +55,16 @@ impl Synchronizer {
             }
             loop {
                 inner.do_sync();
+                if *should_stop.read() {
+                    break;
+                }
                 std::thread::sleep(inner.refresh_interval);
             }
         });
     }
 
     #[cfg(feature = "use_tokio")]
-    pub fn sync(&self, wait_first_resp: bool) {
+    pub fn sync(&self, wait_first_resp: bool, should_stop: Arc<RwLock<bool>>) {
         use std::sync::mpsc::sync_channel;
         let inner = self.inner.clone();
         let client = match &self.inner.client {
@@ -79,6 +82,9 @@ impl Synchronizer {
             }
             loop {
                 inner.do_sync(&client).await;
+                if *should_stop.read() {
+                    break;
+                }
                 interval.tick().await;
             }
         });
@@ -170,7 +176,8 @@ mod tests {
         let port = 9009;
         setup_mock_api(port).await;
         let syncer = build_synchronizer(port);
-        syncer.sync(true);
+        let should_stop = Arc::new(RwLock::new(false));
+        syncer.sync(true, should_stop);
 
         let repo = syncer.repository();
         let repo = repo.read();

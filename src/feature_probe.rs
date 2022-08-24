@@ -35,6 +35,7 @@ pub struct FeatureProbe {
     #[cfg(any(feature = "event", feature = "event_tokio"))]
     event_recorder: Option<EventRecorder>,
     config: InnerConfig,
+    should_stop: Arc<RwLock<bool>>,
 }
 
 impl FeatureProbe {
@@ -115,7 +116,18 @@ impl FeatureProbe {
             syncer: None,
             #[cfg(any(feature = "event", feature = "event_tokio"))]
             event_recorder: None,
+            should_stop: Arc::new(RwLock::new(false)),
         }
+    }
+
+    pub fn close(&self) {
+        if let Some(recorder) = &self.event_recorder {
+            recorder.flush();
+        }
+        let mut should_stop = self.should_stop.write();
+        *should_stop = true;
+
+        info!("featureprobe client closed");
     }
 
     fn generic_detail<T: Default + Debug>(
@@ -202,7 +214,7 @@ impl FeatureProbe {
             self.config.http_client.clone(),
             repo,
         );
-        syncer.sync(self.config.wait_first_resp);
+        syncer.sync(self.config.wait_first_resp, self.should_stop.clone());
         self.syncer = Some(syncer);
         Ok(())
     }
@@ -216,12 +228,14 @@ impl FeatureProbe {
         };
         let flush_interval = self.config.refresh_interval;
         let auth = SdkAuthorization(self.config.server_sdk_key.clone()).encode();
+        let should_stop = self.should_stop.clone();
         let event_recorder = EventRecorder::new(
             events_url,
             auth,
             (*crate::USER_AGENT).clone(),
             flush_interval,
             100,
+            should_stop,
         );
         self.event_recorder = Some(event_recorder);
         Ok(())
