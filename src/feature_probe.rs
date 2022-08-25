@@ -331,7 +331,7 @@ mod tests {
     fn test_feature_probe_bool() {
         let json = load_local_json("resources/fixtures/repo.json");
         let fp = FeatureProbe::new_with("secret key".to_string(), json.unwrap());
-        let u = FPUser::new("key").with("name", "bob").with("city", "1");
+        let u = FPUser::new().with("name", "bob").with("city", "1");
 
         assert!(fp.bool_value("bool_toggle", &u, false));
         assert!(fp.bool_detail("bool_toggle", &u, false).value);
@@ -341,7 +341,7 @@ mod tests {
     fn test_feature_probe_number() {
         let json = load_local_json("resources/fixtures/repo.json");
         let fp = FeatureProbe::new_with("secret key".to_string(), json.unwrap());
-        let u = FPUser::new("key").with("name", "bob").with("city", "1");
+        let u = FPUser::new().with("name", "bob").with("city", "1");
 
         assert_eq!(fp.number_value("number_toggle", &u, 0.0), 1.0);
         assert_eq!(fp.number_detail("number_toggle", &u, 0.0).value, 1.0);
@@ -351,7 +351,7 @@ mod tests {
     fn test_feature_probe_string() {
         let json = load_local_json("resources/fixtures/repo.json");
         let fp = FeatureProbe::new_with("secret key".to_string(), json.unwrap());
-        let u = FPUser::new("key").with("name", "bob").with("city", "1");
+        let u = FPUser::new().with("name", "bob").with("city", "1");
 
         assert_eq!(
             fp.string_value("string_toggle", &u, "".to_string()),
@@ -367,7 +367,7 @@ mod tests {
     fn test_feature_probe_json() {
         let json = load_local_json("resources/fixtures/repo.json");
         let fp = FeatureProbe::new_with("secret key".to_string(), json.unwrap());
-        let u = FPUser::new("key").with("name", "bob").with("city", "1");
+        let u = FPUser::new().with("name", "bob").with("city", "1");
 
         assert!(fp
             .json_value("json_toggle", &u, json!(""))
@@ -385,7 +385,7 @@ mod tests {
     fn test_feature_probe_evaluate_all() {
         let json = load_local_json("resources/fixtures/repo.json");
         let fp = FeatureProbe::new_with("secret key".to_string(), json.unwrap());
-        let u = FPUser::new("key").with("name", "bob").with("city", "1");
+        let u = FPUser::new().with("name", "bob").with("city", "1");
 
         let s = fp.all_evaluated_string(&u);
         assert!(s.len() > 10);
@@ -396,7 +396,7 @@ mod tests {
     fn test_feature_probe_none_exist_toggle() {
         let json = load_local_json("resources/fixtures/repo.json");
         let fp = FeatureProbe::new_with("secret key".to_string(), json.unwrap());
-        let u = FPUser::new("key");
+        let u = FPUser::new();
 
         assert!(fp.bool_value("none_exist_toggle", &u, true));
         let d = fp.bool_detail("none_exist_toggle", &u, true);
@@ -407,7 +407,7 @@ mod tests {
     #[test]
     fn test_for_ut() {
         let fp = FeatureProbe::new_for_test("toggle_1", Value::Bool(false));
-        let u = FPUser::new("key");
+        let u = FPUser::new();
         assert_eq!(fp.bool_value("toggle_1", &u, true), false);
 
         let mut toggles: HashMap<String, Value> = HashMap::new();
@@ -508,7 +508,7 @@ mod server_sdk_contract_tests {
             for case in scenario.cases {
                 println!("  case: {}", case.name);
 
-                let mut user = FPUser::new(case.user.key.clone());
+                let mut user = FPUser::new().stable_rollout(case.user.key.clone());
                 for custom_value in &case.user.custom_values {
                     user = user.with(custom_value.key.clone(), custom_value.value.clone());
                 }

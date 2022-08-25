@@ -85,8 +85,7 @@ fn main() {
 You can use sdk to check which variation a particular user will receive for a given feature flag.
 
 ```rust
-let user_id = /* unique user id in your business logic */
-let user = FPUser::new(user_id).with("name", "bob");
+let user = FPUser::new().with("name", "bob");
 let show_feature = fp.bool_value("bool_toggle", &user, false);
 
 if show_feature {
@@ -102,7 +101,7 @@ You could do unit testing for each variation:
 
 ```rust
 let fp = FeatureProbe::new_for_test("toggle_1", Value::Bool(false));
-let u = FPUser::new("key");
+let u = FPUser::new();
 assert_eq!(fp.bool_value("toggle_1", &u, true), false);
 
 let mut toggles: HashMap<String, Value> = HashMap::new();

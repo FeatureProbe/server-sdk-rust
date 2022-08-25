@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha1::Digest;
 use std::string::String;
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{collections::HashMap, str::FromStr};
 use tracing::{info, warn};
 
@@ -67,16 +68,19 @@ impl Distribution {
     pub fn find_index(&self, eval_param: &EvalParams) -> Result<usize, FPError> {
         let user = eval_param.user;
         let hash_key = match &self.bucket_by {
-            None => &user.key,
+            None => match &user.key {
+                Some(key) => key.to_owned(),
+                None => temporal_rollout_key(),
+            },
             Some(custom_key) => match user.get(custom_key) {
                 None if eval_param.is_detail => {
                     return Err(FPError::EvalDetailError(format!(
-                        "User with id:{} does not have attribute named: [{}]",
+                        "User with key:{:?} does not have attribute named: [{}]",
                         user.key, custom_key
                     )));
                 }
                 None => return Err(FPError::EvalError),
-                Some(value) => value,
+                Some(value) => value.to_owned(),
             },
         };
 
@@ -85,7 +89,7 @@ impl Distribution {
             Some(s) => s,
         };
 
-        let bucket_index = salt_hash(hash_key, salt, 10000);
+        let bucket_index = salt_hash(&hash_key, salt, 10000);
 
         let variation = self.distribution.iter().position(|ranges| {
             ranges.iter().any(|pair| {
@@ -102,6 +106,14 @@ impl Distribution {
             Some(index) => Ok(index),
         }
     }
+}
+
+fn temporal_rollout_key() -> String {
+    let start = SystemTime::now();
+    let since_the_epoch = start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went before epoch");
+    format!("{}", since_the_epoch.as_micros())
 }
 
 fn salt_hash(key: &str, salt: &str, bucket_size: u64) -> u32 {
@@ -541,7 +553,7 @@ mod tests {
         assert!(repo.is_ok());
         let repo = repo.unwrap();
 
-        let user = FPUser::new("key11").with("city", "4");
+        let user = FPUser::new().with("city", "4");
         let toggle = repo.toggles.get("json_toggle").unwrap();
         let r = toggle.eval(&user, &repo.segments);
         let r = r.unwrap();
@@ -558,7 +570,7 @@ mod tests {
         assert!(repo.is_ok());
         let repo = repo.unwrap();
 
-        let user = FPUser::new("key11").with("city", "100");
+        let user = FPUser::new().with("city", "100");
         let toggle = repo.toggles.get("not_in_segment").unwrap();
         let r = toggle.eval(&user, &repo.segments);
         let r = r.unwrap();
@@ -575,19 +587,19 @@ mod tests {
         assert!(repo.is_ok());
         let repo = repo.unwrap();
 
-        let user = FPUser::new("key").with("city", "1").with("os", "linux");
+        let user = FPUser::new().with("city", "1").with("os", "linux");
         let toggle = repo.toggles.get("multi_condition_toggle").unwrap();
         let r = toggle.eval(&user, &repo.segments);
         let r = r.unwrap();
         let r = r.as_object().unwrap();
         assert!(r.get("variation_0").is_some());
 
-        let user = FPUser::new("key").with("os", "linux");
+        let user = FPUser::new().with("os", "linux");
         let toggle = repo.toggles.get("multi_condition_toggle").unwrap();
         let r = toggle.eval_detail(&user, &repo.segments);
         assert!(r.reason.starts_with("default"));
 
-        let user = FPUser::new("key").with("city", "1");
+        let user = FPUser::new().with("city", "1");
         let toggle = repo.toggles.get("multi_condition_toggle").unwrap();
         let r = toggle.eval_detail(&user, &repo.segments);
         assert!(r.reason.starts_with("default"));
@@ -638,7 +650,7 @@ mod tests {
         assert!(repo.is_ok());
         let repo = repo.unwrap();
 
-        let user = FPUser::new("key").with("city", "100");
+        let user = FPUser::new().with("city", "100");
         let toggle = repo.toggles.get("disabled_toggle").unwrap();
         let r = toggle.eval(&user, &repo.segments);
         assert!(r
@@ -653,7 +665,9 @@ mod tests {
         let mut users = Vec::with_capacity(num);
         for i in 0..num {
             let key: u64 = if random { rand::random() } else { i as u64 };
-            let u = FPUser::new(format!("{}", key)).with("city", "100");
+            let u = FPUser::new()
+                .with("city", "100")
+                .stable_rollout(format!("{}", key));
             users.push(u);
         }
         users
@@ -676,7 +690,7 @@ mod distribution_tests {
             salt: Some("salt".to_string()),
         };
 
-        let user_bucket_by_name = FPUser::new("key").with("name", "key");
+        let user_bucket_by_name = FPUser::new().with("name", "key");
 
         let params = EvalParams {
             key: "not care",
@@ -701,7 +715,7 @@ mod distribution_tests {
             salt: Some("salt".to_string()),
         };
 
-        let user_bucket_by_name = FPUser::new("key").with("name", "key");
+        let user_bucket_by_name = FPUser::new().with("name", "key");
 
         let params = EvalParams {
             key: "not care",
@@ -737,7 +751,7 @@ mod distribution_tests {
         };
         let serve = Serve::Split(distribution);
 
-        let user_with_no_name = FPUser::new("key");
+        let user_with_no_name = FPUser::new();
 
         let params = EvalParams {
             key: "",
@@ -788,7 +802,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "world");
+        let user = FPUser::new().with("name", "world");
         assert!(condition.match_string(&user, &condition.predicate));
     }
 
@@ -801,7 +815,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "not_in");
+        let user = FPUser::new().with("name", "not_in");
 
         assert!(!condition.match_string(&user, &condition.predicate));
     }
@@ -815,7 +829,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care"));
+        let user = FPUser::new();
 
         assert!(!condition.match_string(&user, &condition.predicate));
     }
@@ -829,7 +843,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "welcome");
+        let user = FPUser::new().with("name", "welcome");
         assert!(condition.match_string(&user, &condition.predicate));
     }
 
@@ -842,7 +856,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "not_in");
+        let user = FPUser::new().with("name", "not_in");
 
         assert!(condition.match_string(&user, &condition.predicate));
     }
@@ -856,7 +870,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "bob world");
+        let user = FPUser::new().with("name", "bob world");
 
         assert!(condition.match_string(&user, &condition.predicate));
     }
@@ -870,7 +884,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "bob");
+        let user = FPUser::new().with("name", "bob");
 
         assert!(!condition.match_string(&user, &condition.predicate));
     }
@@ -884,7 +898,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "bob");
+        let user = FPUser::new().with("name", "bob");
 
         assert!(condition.match_string(&user, &condition.predicate));
     }
@@ -898,7 +912,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "bob world");
+        let user = FPUser::new().with("name", "bob world");
 
         assert!(!condition.match_string(&user, &condition.predicate));
     }
@@ -912,7 +926,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "world bob");
+        let user = FPUser::new().with("name", "world bob");
 
         assert!(condition.match_string(&user, &condition.predicate));
     }
@@ -926,7 +940,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "bob");
+        let user = FPUser::new().with("name", "bob");
 
         assert!(!condition.match_string(&user, &condition.predicate));
     }
@@ -940,7 +954,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "bob");
+        let user = FPUser::new().with("name", "bob");
 
         assert!(condition.match_string(&user, &condition.predicate));
     }
@@ -954,7 +968,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "world bob");
+        let user = FPUser::new().with("name", "world bob");
 
         assert!(!condition.match_string(&user, &condition.predicate));
     }
@@ -968,7 +982,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "alice world bob");
+        let user = FPUser::new().with("name", "alice world bob");
 
         assert!(condition.match_string(&user, &condition.predicate));
     }
@@ -982,7 +996,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "alice bob");
+        let user = FPUser::new().with("name", "alice bob");
 
         assert!(!condition.match_string(&user, &condition.predicate));
     }
@@ -996,7 +1010,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "alice bob");
+        let user = FPUser::new().with("name", "alice bob");
 
         assert!(condition.match_string(&user, &condition.predicate));
     }
@@ -1010,7 +1024,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "alice world bob");
+        let user = FPUser::new().with("name", "alice world bob");
 
         assert!(!condition.match_string(&user, &condition.predicate));
     }
@@ -1024,7 +1038,7 @@ mod condition_tests {
             objects: vec![String::from("hello"), String::from("world.*")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "alice world bob");
+        let user = FPUser::new().with("name", "alice world bob");
 
         assert!(condition.match_string(&user, &condition.predicate));
     }
@@ -1038,7 +1052,7 @@ mod condition_tests {
             objects: vec![String::from(r"hello\d"), String::from("world.*")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "alice orld bob hello3");
+        let user = FPUser::new().with("name", "alice orld bob hello3");
 
         assert!(condition.match_string(&user, &condition.predicate));
     }
@@ -1052,7 +1066,7 @@ mod condition_tests {
             objects: vec![String::from(r"hello\d"), String::from("world.*")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "alice orld bob hello");
+        let user = FPUser::new().with("name", "alice orld bob hello");
 
         assert!(!condition.match_string(&user, &condition.predicate));
     }
@@ -1066,7 +1080,7 @@ mod condition_tests {
             objects: vec![String::from(r"hello\d"), String::from("world.*")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "alice orld bob hello");
+        let user = FPUser::new().with("name", "alice orld bob hello");
 
         assert!(condition.match_string(&user, &condition.predicate));
     }
@@ -1080,7 +1094,7 @@ mod condition_tests {
             objects: vec![String::from("\\\\\\")],
         };
 
-        let user = FPUser::new(String::from("not care")).with("name", "\\\\\\");
+        let user = FPUser::new().with("name", "\\\\\\");
 
         assert!(!condition.match_string(&user, &condition.predicate));
     }
@@ -1094,7 +1108,7 @@ mod condition_tests {
         assert!(repo.is_ok());
         let repo = repo.unwrap();
 
-        let user = FPUser::new("key").with("city", "1");
+        let user = FPUser::new().with("city", "1");
         let toggle = repo.toggles.get("json_toggle").unwrap();
         let r = toggle.eval(&user, &repo.segments);
         let r = r.unwrap();
@@ -1126,56 +1140,56 @@ mod condition_tests {
             predicate: "=".to_owned(),
         };
 
-        let user = FPUser::new("user").with("version".to_owned(), "1.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "1.0.0".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("version".to_owned(), "2.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "2.0.0".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("version".to_owned(), "3.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "3.0.0".to_owned());
         assert!(!condition.meet(&user, None));
 
         condition.predicate = "!=".to_owned();
-        let user = FPUser::new("user").with("version".to_owned(), "1.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "1.0.0".to_owned());
         assert!(!condition.meet(&user, None));
-        let user = FPUser::new("user").with("version".to_owned(), "2.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "2.0.0".to_owned());
         assert!(!condition.meet(&user, None));
-        let user = FPUser::new("user").with("version".to_owned(), "0.1.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "0.1.0".to_owned());
         assert!(condition.meet(&user, None));
 
         condition.predicate = ">".to_owned();
-        let user = FPUser::new("user").with("version".to_owned(), "2.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "2.0.0".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("version".to_owned(), "3.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "3.0.0".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("version".to_owned(), "0.1.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "0.1.0".to_owned());
         assert!(!condition.meet(&user, None));
 
         condition.predicate = ">=".to_owned();
-        let user = FPUser::new("user").with("version".to_owned(), "1.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "1.0.0".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("version".to_owned(), "2.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "2.0.0".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("version".to_owned(), "3.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "3.0.0".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("version".to_owned(), "0.1.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "0.1.0".to_owned());
         assert!(!condition.meet(&user, None));
 
         condition.predicate = "<".to_owned();
-        let user = FPUser::new("user").with("version".to_owned(), "1.0.0".to_owned()); // < 2.0.0
+        let user = FPUser::new().with("version".to_owned(), "1.0.0".to_owned()); // < 2.0.0
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("version".to_owned(), "2.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "2.0.0".to_owned());
         assert!(!condition.meet(&user, None));
-        let user = FPUser::new("user").with("version".to_owned(), "3.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "3.0.0".to_owned());
         assert!(!condition.meet(&user, None));
 
         condition.predicate = "<=".to_owned();
-        let user = FPUser::new("user").with("version".to_owned(), "1.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "1.0.0".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("version".to_owned(), "2.0.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "2.0.0".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("version".to_owned(), "0.1.0".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "0.1.0".to_owned());
         assert!(condition.meet(&user, None));
 
-        let user = FPUser::new("user").with("version".to_owned(), "a".to_owned());
+        let user = FPUser::new().with("version".to_owned(), "a".to_owned());
         assert!(!condition.meet(&user, None));
     }
 
@@ -1188,54 +1202,54 @@ mod condition_tests {
             predicate: "=".to_owned(),
         };
 
-        let user = FPUser::new("user").with("price".to_owned(), "10".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "10".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("price".to_owned(), "100".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "100".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("price".to_owned(), "0".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "0".to_owned());
         assert!(!condition.meet(&user, None));
 
         condition.predicate = "!=".to_owned();
-        let user = FPUser::new("user").with("price".to_owned(), "10".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "10".to_owned());
         assert!(!condition.meet(&user, None));
-        let user = FPUser::new("user").with("price".to_owned(), "100".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "100".to_owned());
         assert!(!condition.meet(&user, None));
-        let user = FPUser::new("user").with("price".to_owned(), "0".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "0".to_owned());
         assert!(condition.meet(&user, None));
 
         condition.predicate = ">".to_owned();
-        let user = FPUser::new("user").with("price".to_owned(), "11".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "11".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("price".to_owned(), "10".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "10".to_owned());
         assert!(!condition.meet(&user, None));
 
         condition.predicate = ">=".to_owned();
-        let user = FPUser::new("user").with("price".to_owned(), "10".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "10".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("price".to_owned(), "11".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "11".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("price".to_owned(), "100".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "100".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("price".to_owned(), "0".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "0".to_owned());
         assert!(!condition.meet(&user, None));
 
         condition.predicate = "<".to_owned();
-        let user = FPUser::new("user").with("price".to_owned(), "1".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "1".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("price".to_owned(), "10".to_owned()); // < 100
+        let user = FPUser::new().with("price".to_owned(), "10".to_owned()); // < 100
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("price".to_owned(), "100".to_owned()); // < 100
+        let user = FPUser::new().with("price".to_owned(), "100".to_owned()); // < 100
         assert!(!condition.meet(&user, None));
 
         condition.predicate = "<=".to_owned();
-        let user = FPUser::new("user").with("price".to_owned(), "1".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "1".to_owned());
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("price".to_owned(), "10".to_owned()); // < 100
+        let user = FPUser::new().with("price".to_owned(), "10".to_owned()); // < 100
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("price".to_owned(), "100".to_owned()); // < 100
+        let user = FPUser::new().with("price".to_owned(), "100".to_owned()); // < 100
         assert!(condition.meet(&user, None));
 
-        let user = FPUser::new("user").with("price".to_owned(), "a".to_owned());
+        let user = FPUser::new().with("price".to_owned(), "a".to_owned());
         assert!(!condition.meet(&user, None));
     }
 
@@ -1249,16 +1263,16 @@ mod condition_tests {
             predicate: "after".to_owned(),
         };
 
-        let user = FPUser::new("user");
+        let user = FPUser::new();
         assert!(condition.meet(&user, None));
-        let user = FPUser::new("user").with("ts".to_owned(), format!("{}", now_ts));
+        let user = FPUser::new().with("ts".to_owned(), format!("{}", now_ts));
         assert!(condition.meet(&user, None));
 
         condition.predicate = "before".to_owned();
         condition.objects = vec![format!("{}", now_ts + 2)];
         assert!(condition.meet(&user, None));
 
-        let user = FPUser::new("user").with("ts".to_owned(), "a".to_owned());
+        let user = FPUser::new().with("ts".to_owned(), "a".to_owned());
         assert!(!condition.meet(&user, None));
     }
 }

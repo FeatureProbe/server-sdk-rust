@@ -22,8 +22,8 @@ fn criterion_benchmark(c: &mut Criterion) {
     path.push("resources/fixtures/repo.json");
     let json_str = fs::read_to_string(path).unwrap();
     let repo = load_json(&json_str).unwrap();
-    let user_default = FPUser::new("key11");
-    let user_hit = FPUser::new("key11").with("city", "1");
+    let user_default = FPUser::new();
+    let user_hit = FPUser::new().with("city", "1");
     let fp = FeatureProbe::new_with("secret key".to_string(), repo);
 
     c.bench_function("bench_bool_toggle_defualt", |b| {

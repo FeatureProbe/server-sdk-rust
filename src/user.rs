@@ -4,17 +4,22 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Deserialize, Serialize)]
 pub struct FPUser {
-    pub key: String,
+    pub key: Option<String>,
     attrs: HashMap<String, String>,
 }
 
 impl FPUser {
-    pub fn new<T: Into<String>>(key: T) -> Self {
-        let key = key.into();
+    pub fn new() -> Self {
+        let key = None;
         FPUser {
             key,
             ..Default::default()
         }
+    }
+
+    pub fn stable_rollout(mut self, key: String) -> Self {
+        self.key = Some(key);
+        self
     }
 
     pub fn with<T: Into<String>>(mut self, k: T, v: T) -> Self {
@@ -42,8 +47,8 @@ mod tests {
 
     #[test]
     fn test_user_with() {
-        let u = FPUser::new("key").with("name", "bob").with("phone", "123");
-        assert_eq!(u.key, "key");
+        let u = FPUser::new().with("name", "bob").with("phone", "123");
+        assert_eq!(u.key, None);
         assert_eq!(u.get("name"), Some(&"bob".to_owned()));
         assert_eq!(u.get("phone"), Some(&"123".to_owned()));
         assert_eq!(u.get_all().len(), 2);
@@ -54,7 +59,7 @@ mod tests {
         let mut attrs: HashMap<String, String> = Default::default();
         attrs.insert("name".to_owned(), "bob".to_owned());
         attrs.insert("phone".to_owned(), "123".to_owned());
-        let u = FPUser::new("key").with_attrs(attrs.into_iter());
+        let u = FPUser::new().with_attrs(attrs.into_iter());
         assert_eq!(u.get_all().len(), 2);
     }
 }

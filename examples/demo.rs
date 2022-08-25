@@ -30,7 +30,7 @@ async fn main() {
         }
     };
 
-    let user = FPUser::new("unique user key");
+    let user = FPUser::new();
     let enable = fp.bool_value("campaign_enable", &user, false);
     println!("Result => campaign_enable : {:?}", enable);
 

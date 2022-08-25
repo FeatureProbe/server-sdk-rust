@@ -26,7 +26,7 @@ async fn integration_test() {
     assert!(fp.is_ok());
 
     let fp = fp.unwrap();
-    let user = FPUser::new("123");
+    let user = FPUser::new();
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
