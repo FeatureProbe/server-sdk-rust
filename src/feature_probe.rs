@@ -121,13 +121,12 @@ impl FeatureProbe {
     }
 
     pub fn close(&self) {
+        info!("closing featureprobe client");
         if let Some(recorder) = &self.event_recorder {
             recorder.flush();
         }
         let mut should_stop = self.should_stop.write();
         *should_stop = true;
-
-        info!("featureprobe client closed");
     }
 
     fn generic_detail<T: Default + Debug>(
