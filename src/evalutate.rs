@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha1::Digest;
 use std::string::String;
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::{collections::HashMap, str::FromStr};
 use tracing::{info, warn};
 
@@ -67,16 +66,15 @@ pub struct Distribution {
 impl Distribution {
     pub fn find_index(&self, eval_param: &EvalParams) -> Result<usize, FPError> {
         let user = eval_param.user;
+
         let hash_key = match &self.bucket_by {
-            None => match &user.key {
-                Some(key) => key.to_owned(),
-                None => temporal_rollout_key(),
-            },
+            None => user.key(),
             Some(custom_key) => match user.get(custom_key) {
                 None if eval_param.is_detail => {
                     return Err(FPError::EvalDetailError(format!(
                         "User with key:{:?} does not have attribute named: [{}]",
-                        user.key, custom_key
+                        user.key(),
+                        custom_key
                     )));
                 }
                 None => return Err(FPError::EvalError),
@@ -106,14 +104,6 @@ impl Distribution {
             Some(index) => Ok(index),
         }
     }
-}
-
-fn temporal_rollout_key() -> String {
-    let start = SystemTime::now();
-    let since_the_epoch = start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went before epoch");
-    format!("{}", since_the_epoch.as_micros())
 }
 
 fn salt_hash(key: &str, salt: &str, bucket_size: u64) -> u32 {
