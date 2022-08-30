@@ -9,7 +9,7 @@ async fn main() {
     // let remote_url = "http://localhost:4007"; // for local docker
     let remote_url = "https://featureprobe.io/server";
     // this key can fetch data, but can not change toggle
-    let server_sdk_key = "server-8ed48815ef044428826787e9a238b9c6a479f98c";
+    let server_sdk_key = "server-7fa2f771259cb7235b96433d70b91e99abcf6ff8";
     // let server_sdk_key = /* paste server key from project list for changing toggle */;
     let interval = Duration::from_millis(2000);
     let config = FPConfig {
@@ -30,12 +30,13 @@ async fn main() {
         }
     };
 
-    let user = FPUser::new();
-    let enable = fp.bool_value("campaign_enable", &user, false);
-    println!("Result => campaign_enable : {:?}", enable);
+    let mut user = FPUser::new();
+    user = user.with("userId", "00001");
+    let toggle_key = "campaign_allow_list";
+    let enable = fp.bool_value(toggle_key, &user, false);
+    println!("Result =>  : {:?}", enable);
 
-    let detail = fp.bool_detail("campaign_enable", &user, false);
-    // println!("       => value : {:?}", detail.reason); // same as bool_value
+    let detail = fp.bool_detail(toggle_key, &user, false);
     println!("       => reason : {:?}", detail.reason);
     println!("       => rule index  : {:?}", detail.rule_index);
 
