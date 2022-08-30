@@ -6,11 +6,10 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() {
-    // let remote_url = "http://localhost:4007"; // for local docker
+    // let remote_url = "http://localhost:4009/server"; // for local docker
     let remote_url = "https://featureprobe.io/server";
-    // this key can fetch data, but can not change toggle
+    // Server SDK key in Project List Page.
     let server_sdk_key = "server-7fa2f771259cb7235b96433d70b91e99abcf6ff8";
-    // let server_sdk_key = /* paste server key from project list for changing toggle */;
     let interval = Duration::from_millis(2000);
     let config = FPConfig {
         remote_url: remote_url.to_owned(),
