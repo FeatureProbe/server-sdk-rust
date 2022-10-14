@@ -45,12 +45,12 @@ url = "2"
 
 feature-probe-event-std = { optional = true, version = "1.1.2", package = "feature-probe-event" }
 feature-probe-event-tokio = { optional = true, version = "1.1.2", features = [
-    "use_tokio",
+  "use_tokio",
 ], default-features = false, package = "feature-probe-event" }
 
 reqwest = { optional = true, version = "0.11", default-features = false, features = [
-    "rustls-tls",
-    "json",
+  "rustls-tls",
+  "json",
 ] }
 tokio = { optional = true, version = "1", features = ["full"] }
 ureq = { optional = true, version = "2.4" }

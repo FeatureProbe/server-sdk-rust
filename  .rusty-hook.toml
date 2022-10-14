@@ -1,5 +1,0 @@
-[hooks]
-pre-push = "cargo fmt -- --check && cargo clippy -- -Dwarnings && make test"
-
-[logging]
-verbose = true

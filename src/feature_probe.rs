@@ -122,6 +122,7 @@ impl FeatureProbe {
 
     pub fn close(&self) {
         info!("closing featureprobe client");
+        #[cfg(any(feature = "event", feature = "event_tokio"))]
         if let Some(recorder) = &self.event_recorder {
             recorder.flush();
         }

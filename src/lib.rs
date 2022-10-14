@@ -20,7 +20,7 @@ lazy_static! {
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FPDetail<T: Default + Debug> {
     pub value: T,
