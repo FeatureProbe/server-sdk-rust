@@ -11,7 +11,7 @@ use std::string::String;
 use std::{collections::HashMap, str::FromStr};
 use tracing::{info, warn};
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum Serve {
     Select(usize),
@@ -52,10 +52,10 @@ impl Serve {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 struct BucketRange((u32, u32));
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Distribution {
     distribution: Vec<Vec<BucketRange>>,
@@ -130,7 +130,7 @@ pub struct EvalParams<'a> {
     segment_repo: &'a HashMap<String, Segment>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct EvalDetail<T> {
     pub value: Option<T>,
@@ -140,7 +140,7 @@ pub struct EvalDetail<T> {
     pub reason: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Toggle {
     key: String,
@@ -296,7 +296,7 @@ struct DefaultRule {
     pub serve: Serve,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 struct Rule {
     serve: Serve,
     conditions: Vec<Condition>,
@@ -317,7 +317,7 @@ impl Rule {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "camelCase")]
 enum ConditionType {
     String,
@@ -329,7 +329,7 @@ enum ConditionType {
     Unknown,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 struct Condition {
     r#type: ConditionType,
     #[serde(default)]
@@ -425,14 +425,14 @@ impl Condition {
             },
             None => unix_timestamp() / 1000,
         };
-        return match predicate {
+        match predicate {
             "after" => self.do_match::<u128>(&c, |c, o| c.ge(o)),
             "before" => self.do_match::<u128>(&c, |c, o| c.lt(o)),
             _ => {
                 info!("unknown predicate {}", predicate);
                 false
             }
-        };
+        }
     }
 
     fn do_match<T: FromStr>(&self, t: &T, f: fn(&T, &T) -> bool) -> bool {
