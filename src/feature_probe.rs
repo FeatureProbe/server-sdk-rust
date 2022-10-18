@@ -7,8 +7,6 @@ use std::time::Duration;
 use tracing::info;
 use url::Url;
 
-#[cfg(feature = "internal")]
-use crate::evalutate::Segment;
 use crate::evalutate::{EvalDetail, Repository};
 use crate::sync::Synchronizer;
 use crate::user::FPUser;
@@ -242,33 +240,8 @@ impl FeatureProbe {
     }
 
     #[cfg(feature = "internal")]
-    pub fn update_toggles(&mut self, toggles: HashMap<String, Toggle>) {
-        let mut repo = self.repo.write();
-        repo.toggles.extend(toggles)
-    }
-
-    #[cfg(feature = "internal")]
-    pub fn update_segments(&mut self, segments: HashMap<String, Segment>) {
-        let mut repo = self.repo.write();
-        repo.segments.extend(segments)
-    }
-
-    #[cfg(feature = "internal")]
-    pub fn repo_string(&self) -> String {
-        let repo = self.repo.read();
-        serde_json::to_string(&*repo).expect("repo valid json format")
-    }
-
-    #[cfg(feature = "internal")]
-    pub fn all_evaluated_string(&self, user: &FPUser) -> String {
-        let repo = self.repo.read();
-        let map: HashMap<String, EvalDetail<Value>> = repo
-            .toggles
-            .iter()
-            .filter(|(_, t)| t.is_for_client())
-            .map(|(key, toggle)| (key.to_owned(), toggle.eval_detail(user, &repo.segments)))
-            .collect();
-        serde_json::to_string(&map).expect("valid json format")
+    pub fn repo(&self) -> Arc<RwLock<Repository>> {
+        self.repo.clone()
     }
 }
 
@@ -378,18 +351,6 @@ mod tests {
             .value
             .get("variation_0")
             .is_some());
-    }
-
-    #[cfg(feature = "internal")]
-    #[test]
-    fn test_feature_probe_evaluate_all() {
-        let json = load_local_json("resources/fixtures/repo.json");
-        let fp = FeatureProbe::new_with("secret key".to_string(), json.unwrap());
-        let u = FPUser::new().with("name", "bob").with("city", "1");
-
-        let s = fp.all_evaluated_string(&u);
-        assert!(s.len() > 10);
-        assert!(!s.contains("server_toggle"))
     }
 
     #[test]
