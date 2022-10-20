@@ -19,7 +19,7 @@ async fn integration_test() {
         remote_url: format!("http://127.0.0.1:{}", server_port),
         server_sdk_key: "server-sdk-key1".to_owned(),
         refresh_interval: Duration::from_secs(5),
-        wait_first_resp: true,
+        start_wait: Some(Duration::from_secs(5)),
         ..Default::default()
     };
     let fp = FeatureProbe::new(config);

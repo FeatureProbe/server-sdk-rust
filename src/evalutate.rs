@@ -495,8 +495,7 @@ fn validate_toggle(_toggle: &Toggle) -> Result<(), FPError> {
 
 #[allow(dead_code)]
 pub fn load_json(json_str: &str) -> Result<Repository, FPError> {
-    let repo =
-        serde_json::from_str::<Repository>(json_str).map_err(|e| FPError::JsonError(e.to_string()));
+    let repo = serde_json::from_str::<Repository>(json_str).map_err(FPError::JsonError);
     if let Ok(repo) = &repo {
         for t in repo.toggles.values() {
             validate_toggle(t)?
@@ -1116,8 +1115,7 @@ mod condition_tests {
         }
         "#;
 
-        let segment = serde_json::from_str::<Condition>(json_str)
-            .map_err(|e| FPError::JsonError(e.to_string()));
+        let segment = serde_json::from_str::<Condition>(json_str).map_err(FPError::JsonError);
         assert!(segment.is_ok())
     }
 

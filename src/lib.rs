@@ -34,13 +34,17 @@ pub struct FPDetail<T: Default + Debug> {
 #[derive(Debug, Error)]
 pub enum FPError {
     #[error("invalid json: {0}")]
-    JsonError(String),
+    JsonError(#[from] serde_json::Error),
     #[error("invalid url: {0}")]
     UrlError(String),
+    #[error("http error: {0}")]
+    HttpError(String),
     #[error("evaluation error")]
     EvalError,
     #[error("evaluation error: {0}")]
     EvalDetailError(String),
+    #[error("internal error: {0}")]
+    InternalError(String),
 }
 
 #[derive(Debug, Deserialize)]

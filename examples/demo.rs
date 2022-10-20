@@ -17,7 +17,7 @@ async fn main() {
         refresh_interval: interval,
         #[cfg(feature = "use_tokio")]
         http_client: None,
-        wait_first_resp: true,
+        start_wait: Some(Duration::from_secs(5)),
         ..Default::default()
     };
 

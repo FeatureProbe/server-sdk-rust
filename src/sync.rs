@@ -1,8 +1,10 @@
+use crate::FPError;
 use crate::Repository;
 use headers::HeaderValue;
 use parking_lot::RwLock;
 #[cfg(feature = "use_tokio")]
 use reqwest::{header::AUTHORIZATION, Client, Method};
+use std::{sync::mpsc::sync_channel, time::Instant};
 use std::{sync::Arc, time::Duration};
 use tracing::{debug, error};
 use url::Url;
@@ -20,6 +22,7 @@ struct Inner {
     #[cfg(feature = "use_tokio")]
     client: Option<Client>,
     repo: Arc<RwLock<Repository>>,
+    is_init: Arc<RwLock<bool>>,
 }
 
 //TODO: graceful shutdown
@@ -39,49 +42,77 @@ impl Synchronizer {
                 #[cfg(feature = "use_tokio")]
                 client,
                 repo,
+                is_init: Default::default(),
             }),
         }
     }
 
+    pub fn initialized(&self) -> bool {
+        let lock = self.inner.is_init.read();
+        *lock
+    }
+
     #[cfg(feature = "use_std")]
-    pub fn sync(&self, wait_first_resp: bool, should_stop: Arc<RwLock<bool>>) {
+    pub fn sync(
+        &self,
+        start_wait: Option<Duration>,
+        should_stop: Arc<RwLock<bool>>,
+    ) -> Result<(), FPError> {
         let inner = self.inner.clone();
-        if wait_first_resp {
-            inner.do_sync()
-        }
-        std::thread::spawn(move || {
-            if wait_first_resp {
-                std::thread::sleep(inner.refresh_interval);
+        let (tx, rx) = sync_channel(1);
+        let start = Instant::now();
+        let mut is_send = false;
+        let interval_duration = inner.refresh_interval;
+
+        std::thread::spawn(move || loop {
+            let init_timeout = Self::init_timeout_fn(start_wait, interval_duration, start);
+
+            if let Some(r) = Self::should_send(inner.do_sync(), init_timeout, is_send) {
+                is_send = true;
+                let _ = tx.try_send(r);
             }
-            loop {
-                inner.do_sync();
-                if *should_stop.read() {
-                    break;
-                }
-                std::thread::sleep(inner.refresh_interval);
+
+            if *should_stop.read() {
+                break;
             }
+            std::thread::sleep(inner.refresh_interval);
         });
+
+        if start_wait.is_some() {
+            rx.recv()
+                .map_err(|e| FPError::InternalError(e.to_string()))?
+        } else {
+            Ok(())
+        }
     }
 
     #[cfg(feature = "use_tokio")]
-    pub fn sync(&self, wait_first_resp: bool, should_stop: Arc<RwLock<bool>>) {
-        use std::sync::mpsc::sync_channel;
+    pub fn sync(
+        &self,
+        start_wait: Option<Duration>,
+        should_stop: Arc<RwLock<bool>>,
+    ) -> Result<(), FPError> {
         let inner = self.inner.clone();
         let client = match &self.inner.client {
             Some(c) => c.clone(),
             None => reqwest::Client::new(),
         };
         let (tx, rx) = sync_channel(1);
+        let start = Instant::now();
+        let mut is_send = false;
+        let interval_duration = inner.refresh_interval;
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(inner.refresh_interval);
-            if wait_first_resp {
-                inner.do_sync(&client).await;
-                let _ = tx.send(true);
-                interval.tick().await;
-            }
             loop {
-                inner.do_sync(&client).await;
+                let result = inner.do_sync(&client).await;
+                let init_timeout = Self::init_timeout_fn(start_wait, interval_duration, start);
+
+                if let Some(r) = Self::should_send(result, init_timeout, is_send) {
+                    is_send = true;
+                    let _ = tx.try_send(r);
+                }
+
                 if *should_stop.read() {
                     break;
                 }
@@ -89,8 +120,11 @@ impl Synchronizer {
             }
         });
 
-        if wait_first_resp {
-            let _ = rx.recv();
+        if start_wait.is_some() {
+            rx.recv()
+                .map_err(|e| FPError::InternalError(e.to_string()))?
+        } else {
+            Ok(())
         }
     }
 
@@ -98,11 +132,43 @@ impl Synchronizer {
     pub fn repository(&self) -> Arc<RwLock<Repository>> {
         self.inner.repo.clone()
     }
+
+    fn init_timeout_fn(
+        start_wait: Option<Duration>,
+        interval: Duration,
+        start: Instant,
+    ) -> Option<Box<dyn Fn() -> bool + Send>> {
+        match start_wait {
+            Some(timeout) => Some(Box::new(move || start.elapsed() + interval > timeout)),
+            None => None,
+        }
+    }
+
+    fn should_send(
+        result: Result<(), FPError>,
+        is_timeout: Option<Box<dyn Fn() -> bool + Send>>,
+        is_send: bool,
+    ) -> Option<Result<(), FPError>> {
+        if let Some(is_timeout) = is_timeout {
+            match result {
+                Ok(_) if !is_send => {
+                    return Some(Ok(()));
+                }
+                Err(e) if !is_send && is_timeout() => {
+                    error!("sync error: {}", e);
+                    return Some(Err(e));
+                }
+                Err(e) => error!("sync error: {}", e),
+                _ => {}
+            }
+        }
+        None
+    }
 }
 
 impl Inner {
     #[cfg(feature = "use_tokio")]
-    async fn do_sync(&self, client: &Client) {
+    async fn do_sync(&self, client: &Client) -> Result<(), FPError> {
         use http::header::USER_AGENT;
 
         let request = client
@@ -113,17 +179,20 @@ impl Inner {
 
         //TODO: report failure
         match request.send().await {
-            Err(e) => error!("sync error: {}", e),
+            Err(e) => Err(FPError::HttpError(e.to_string())),
             Ok(resp) => match resp.text().await {
-                Err(e) => error!("sync error: {}", e),
+                Err(e) => Err(FPError::HttpError(e.to_string())),
                 Ok(body) => match serde_json::from_str::<Repository>(&body) {
-                    Err(e) => error!("sync error: {} {}", e, body),
+                    Err(e) => Err(FPError::JsonError(e)),
                     Ok(r) => {
                         // TODO: validate repo
                         // TODO: diff change, notify subscriber
                         debug!("sync success {:?}", r);
                         let mut repo = self.repo.write();
-                        *repo = r
+                        *repo = r;
+                        let mut is_init = self.is_init.write();
+                        *is_init = true;
+                        Ok(())
                     }
                 },
             },
@@ -131,7 +200,7 @@ impl Inner {
     }
 
     #[cfg(feature = "use_std")]
-    fn do_sync(&self) {
+    fn do_sync(&self) -> Result<(), FPError> {
         //TODO: report failure
         match ureq::get(self.toggles_url.as_str())
             .set(
@@ -142,17 +211,20 @@ impl Inner {
             .timeout(self.refresh_interval)
             .call()
         {
-            Err(e) => error!("do_sync: ureq error {}", e),
+            Err(e) => Err(FPError::HttpError(e.to_string())),
             Ok(r) => match r.into_string() {
-                Err(e) => error!("sync error: {}", e),
+                Err(e) => Err(FPError::HttpError(e.to_string())),
                 Ok(body) => {
                     match serde_json::from_str::<Repository>(&body) {
-                        Err(e) => error!("sync error: {} {}", e, body),
+                        Err(e) => Err(FPError::JsonError(e)),
                         Ok(r) => {
                             // TODO: validate repo
                             debug!("sync success {:?}", r);
                             let mut repo = self.repo.write();
-                            *repo = r
+                            *repo = r;
+                            let mut is_init = self.is_init.write();
+                            *is_init = true;
+                            Ok(())
                         }
                     }
                 }
@@ -169,6 +241,77 @@ mod tests {
     use headers::UserAgent;
     use std::{fs, net::SocketAddr, path::PathBuf};
 
+    #[tokio::test]
+    async fn test_init_timeout_fn() {
+        let now = Instant::now();
+        let now = now - Duration::from_millis(10);
+
+        let is_timeout_fn = Synchronizer::init_timeout_fn(None, Duration::from_millis(1), now);
+        assert!(is_timeout_fn.is_none());
+
+        let is_timeout_fn = Synchronizer::init_timeout_fn(
+            Some(Duration::from_millis(20)),
+            Duration::from_millis(1),
+            now,
+        );
+        assert!(!is_timeout_fn.unwrap()());
+
+        let is_timeout_fn = Synchronizer::init_timeout_fn(
+            Some(Duration::from_millis(5)),
+            Duration::from_millis(1),
+            now,
+        );
+        assert!(is_timeout_fn.unwrap()());
+    }
+
+    #[test]
+    fn test_should_send() {
+        let is_timeout_fn = None;
+        let r = Synchronizer::should_send(Ok(()), is_timeout_fn, false);
+        assert!(r.is_none(), "no need send because not set timeout");
+
+        let is_timeout_fn: Option<Box<dyn Fn() -> bool + Send>> = Some(Box::new(|| false));
+        let r = Synchronizer::should_send(Ok(()), is_timeout_fn, false);
+        assert!(r.is_some(), "need send because not timeout, and return Ok");
+        let r = r.unwrap();
+        assert!(r.is_ok());
+
+        let is_timeout_fn: Option<Box<dyn Fn() -> bool + Send>> = Some(Box::new(|| false));
+        let r = Synchronizer::should_send(Ok(()), is_timeout_fn, true);
+        assert!(
+            r.is_none(),
+            "no need send because not timeout, and return error, wait next loop"
+        );
+
+        let is_timeout_fn: Option<Box<dyn Fn() -> bool + Send>> = Some(Box::new(|| false));
+        let is_send = true;
+        let r = Synchronizer::should_send(
+            Err(FPError::InternalError("unkown".to_owned())),
+            is_timeout_fn,
+            is_send,
+        );
+        assert!(r.is_none(), "no need send because already send before");
+
+        let is_timeout_fn: Option<Box<dyn Fn() -> bool + Send>> = Some(Box::new(|| true));
+        let r = Synchronizer::should_send(
+            Err(FPError::InternalError("unkown".to_owned())),
+            is_timeout_fn,
+            is_send,
+        );
+        assert!(r.is_none(), "no need send because already send before");
+
+        let is_send = false;
+        let is_timeout_fn: Option<Box<dyn Fn() -> bool + Send>> = Some(Box::new(|| true));
+        let r = Synchronizer::should_send(
+            Err(FPError::InternalError("unkown".to_owned())),
+            is_timeout_fn,
+            is_send,
+        );
+        assert!(r.is_some(), "need send because already timeout");
+        let r = r.unwrap();
+        assert!(r.is_err());
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_sync() {
         let _ = tracing_subscriber::fmt().init();
@@ -177,11 +320,13 @@ mod tests {
         setup_mock_api(port).await;
         let syncer = build_synchronizer(port);
         let should_stop = Arc::new(RwLock::new(false));
-        syncer.sync(true, should_stop);
+        let r = syncer.sync(Some(Duration::from_secs(5)), should_stop);
+        assert!(r.is_ok());
 
         let repo = syncer.repository();
         let repo = repo.read();
         assert!(!repo.toggles.is_empty());
+        assert!(syncer.initialized());
     }
 
     fn build_synchronizer(port: u16) -> Synchronizer {
@@ -197,6 +342,7 @@ mod tests {
                 #[cfg(feature = "use_tokio")]
                 client: None,
                 repo: Default::default(),
+                is_init: Default::default(),
             }),
         }
     }

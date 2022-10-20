@@ -128,6 +128,13 @@ impl FeatureProbe {
         *should_stop = true;
     }
 
+    pub fn initialized(&self) -> bool {
+        match &self.syncer {
+            Some(s) => s.initialized(),
+            None => false,
+        }
+    }
+
     fn generic_detail<T: Default + Debug>(
         &self,
         toggle: &str,
@@ -212,8 +219,8 @@ impl FeatureProbe {
             self.config.http_client.clone(),
             repo,
         );
-        syncer.sync(self.config.wait_first_resp, self.should_stop.clone());
-        self.syncer = Some(syncer);
+        self.syncer = Some(syncer.clone());
+        syncer.sync(self.config.start_wait, self.should_stop.clone())?;
         Ok(())
     }
 
@@ -254,7 +261,7 @@ pub struct FPConfig {
     pub refresh_interval: Duration,
     #[cfg(feature = "use_tokio")]
     pub http_client: Option<Client>,
-    pub wait_first_resp: bool,
+    pub start_wait: Option<Duration>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -265,7 +272,7 @@ pub struct InnerConfig {
     pub refresh_interval: Duration,
     #[cfg(feature = "use_tokio")]
     pub http_client: Option<Client>,
-    pub wait_first_resp: bool,
+    pub start_wait: Option<Duration>,
 }
 
 fn build_config(mut config: FPConfig) -> InnerConfig {
@@ -285,7 +292,7 @@ fn build_config(mut config: FPConfig) -> InnerConfig {
         events_url: config.events_url.expect("not none"),
         server_sdk_key: config.server_sdk_key,
         refresh_interval: config.refresh_interval,
-        wait_first_resp: config.wait_first_resp,
+        start_wait: config.start_wait,
         #[cfg(feature = "use_tokio")]
         http_client: config.http_client,
     }
@@ -401,7 +408,7 @@ mod server_sdk_contract_tests {
 
     #[allow(dead_code)]
     pub(crate) fn load_tests_json(json_str: &str) -> Result<Tests, FPError> {
-        serde_json::from_str::<Tests>(json_str).map_err(|e| FPError::JsonError(e.to_string()))
+        serde_json::from_str::<Tests>(json_str).map_err(FPError::JsonError)
     }
 
     #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
