@@ -5,12 +5,12 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use tracing::trace;
 
-use crate::sync::Synchronizer;
 use crate::user::FPUser;
 use crate::{
-    config::FPConfig,
+    config::Config,
     evalutate::{EvalDetail, Repository},
 };
+use crate::{sync::Synchronizer, FPConfig};
 use crate::{FPDetail, SdkAuthorization, Toggle};
 #[cfg(feature = "event")]
 use feature_probe_event_std::event::AccessEvent;
@@ -31,12 +31,13 @@ pub struct FeatureProbe {
     syncer: Option<Synchronizer>,
     #[cfg(any(feature = "event", feature = "event_tokio"))]
     event_recorder: Option<EventRecorder>,
-    config: FPConfig,
+    config: Config,
     should_stop: Arc<RwLock<bool>>,
 }
 
 impl FeatureProbe {
     pub fn new(config: FPConfig) -> Self {
+        let config = config.build();
         let mut slf = Self {
             config,
             ..Default::default()
@@ -102,7 +103,7 @@ impl FeatureProbe {
 
     pub fn new_with(server_key: String, repo: Repository) -> Self {
         Self {
-            config: FPConfig {
+            config: Config {
                 server_sdk_key: server_key,
                 ..Default::default()
             },

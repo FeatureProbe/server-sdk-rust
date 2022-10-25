@@ -4,7 +4,7 @@ mod feature_probe;
 mod sync;
 mod user;
 
-pub use crate::config::{FPConfig, FPConfigBuilder};
+pub use crate::config::FPConfig;
 pub use crate::evalutate::{load_json, Repository, Segment, Toggle};
 pub use crate::feature_probe::FeatureProbe;
 pub use crate::user::FPUser;
