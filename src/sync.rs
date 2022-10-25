@@ -53,11 +53,7 @@ impl Synchronizer {
     }
 
     #[cfg(feature = "use_std")]
-    pub fn sync(
-        &self,
-        start_wait: Option<Duration>,
-        should_stop: Arc<RwLock<bool>>,
-    ) -> Result<(), FPError> {
+    pub fn sync(&self, start_wait: Option<Duration>, should_stop: Arc<RwLock<bool>>) {
         let inner = self.inner.clone();
         let (tx, rx) = sync_channel(1);
         let start = Instant::now();
@@ -79,19 +75,12 @@ impl Synchronizer {
         });
 
         if start_wait.is_some() {
-            rx.recv()
-                .map_err(|e| FPError::InternalError(e.to_string()))?
-        } else {
-            Ok(())
+            let _ = rx.recv();
         }
     }
 
     #[cfg(feature = "use_tokio")]
-    pub fn sync(
-        &self,
-        start_wait: Option<Duration>,
-        should_stop: Arc<RwLock<bool>>,
-    ) -> Result<(), FPError> {
+    pub fn sync(&self, start_wait: Option<Duration>, should_stop: Arc<RwLock<bool>>) {
         let inner = self.inner.clone();
         let client = match &self.inner.client {
             Some(c) => c.clone(),
@@ -121,10 +110,7 @@ impl Synchronizer {
         });
 
         if start_wait.is_some() {
-            rx.recv()
-                .map_err(|e| FPError::InternalError(e.to_string()))?
-        } else {
-            Ok(())
+            let _ = rx.recv();
         }
     }
 
@@ -171,11 +157,18 @@ impl Inner {
     async fn do_sync(&self, client: &Client) -> Result<(), FPError> {
         use http::header::USER_AGENT;
 
-        let request = client
+        let mut request = client
             .request(Method::GET, self.toggles_url.clone())
             .header(AUTHORIZATION, self.auth.clone())
             .header(USER_AGENT, &*crate::USER_AGENT)
             .timeout(self.refresh_interval);
+
+        {
+            let repo = self.repo.read();
+            if let Some(version) = &repo.version {
+                request = request.query(&["version", version]);
+            }
+        } // drop repo lock
 
         //TODO: report failure
         match request.send().await {
@@ -202,15 +195,22 @@ impl Inner {
     #[cfg(feature = "use_std")]
     fn do_sync(&self) -> Result<(), FPError> {
         //TODO: report failure
-        match ureq::get(self.toggles_url.as_str())
+        let mut request = ureq::get(self.toggles_url.as_str())
             .set(
                 "Authorization",
                 self.auth.to_str().expect("already valid header value"),
             )
             .set("User-Agent", &*crate::USER_AGENT)
-            .timeout(self.refresh_interval)
-            .call()
+            .timeout(self.refresh_interval);
+
         {
+            let repo = self.repo.read();
+            if let Some(version) = &repo.version {
+                request = request.query("version", version)
+            }
+        } // drop repo lock
+
+        match request.call() {
             Err(e) => Err(FPError::HttpError(e.to_string())),
             Ok(r) => match r.into_string() {
                 Err(e) => Err(FPError::HttpError(e.to_string())),
@@ -320,8 +320,7 @@ mod tests {
         setup_mock_api(port).await;
         let syncer = build_synchronizer(port);
         let should_stop = Arc::new(RwLock::new(false));
-        let r = syncer.sync(Some(Duration::from_secs(5)), should_stop);
-        assert!(r.is_ok());
+        syncer.sync(Some(Duration::from_secs(5)), should_stop);
 
         let repo = syncer.repository();
         let repo = repo.read();

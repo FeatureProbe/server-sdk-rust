@@ -5,7 +5,7 @@ use feature_probe_server::{
     repo::SdkRepository,
     ServerConfig,
 };
-use feature_probe_server_sdk::{FPConfig, FPUser, FeatureProbe, Url};
+use feature_probe_server_sdk::{FPConfigBuilder, FPUser, FeatureProbe, Url};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn integration_test() {
@@ -15,17 +15,18 @@ async fn integration_test() {
     let server_port = 19990;
     setup_server(api_port, server_port).await;
 
-    let config = FPConfig {
-        remote_url: format!("http://127.0.0.1:{}", server_port),
-        server_sdk_key: "server-sdk-key1".to_owned(),
-        refresh_interval: Duration::from_secs(5),
-        start_wait: Some(Duration::from_secs(5)),
-        ..Default::default()
-    };
-    let fp = FeatureProbe::new(config);
-    assert!(fp.is_ok());
+    let config = FPConfigBuilder::new(
+        format!("http://127.0.0.1:{}", server_port),
+        "server-sdk-key1".to_owned(),
+        Duration::from_secs(5),
+    )
+    .start_wait(Duration::from_secs(5))
+    .build();
+    assert!(config.is_ok());
+    let config = config.unwrap();
 
-    let fp = fp.unwrap();
+    let fp = FeatureProbe::new(config);
+
     let user = FPUser::new();
 
     tokio::time::sleep(Duration::from_millis(100)).await;

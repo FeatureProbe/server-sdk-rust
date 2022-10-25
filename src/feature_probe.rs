@@ -3,14 +3,15 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::Duration;
-use tracing::info;
-use url::Url;
+use tracing::trace;
 
-use crate::evalutate::{EvalDetail, Repository};
 use crate::sync::Synchronizer;
 use crate::user::FPUser;
-use crate::{FPDetail, FPError, SdkAuthorization, Toggle};
+use crate::{
+    config::FPConfig,
+    evalutate::{EvalDetail, Repository},
+};
+use crate::{FPDetail, SdkAuthorization, Toggle};
 #[cfg(feature = "event")]
 use feature_probe_event_std::event::AccessEvent;
 #[cfg(feature = "event")]
@@ -23,8 +24,6 @@ use feature_probe_event_tokio::event::AccessEvent;
 use feature_probe_event_tokio::recorder::unix_timestamp;
 #[cfg(feature = "event_tokio")]
 use feature_probe_event_tokio::recorder::EventRecorder;
-#[cfg(feature = "use_tokio")]
-use reqwest::Client;
 
 #[derive(Debug, Default, Clone)]
 pub struct FeatureProbe {
@@ -32,22 +31,19 @@ pub struct FeatureProbe {
     syncer: Option<Synchronizer>,
     #[cfg(any(feature = "event", feature = "event_tokio"))]
     event_recorder: Option<EventRecorder>,
-    config: InnerConfig,
+    config: FPConfig,
     should_stop: Arc<RwLock<bool>>,
 }
 
 impl FeatureProbe {
-    pub fn new(config: FPConfig) -> Result<Self, FPError> {
-        let config = build_config(config);
+    pub fn new(config: FPConfig) -> Self {
         let mut slf = Self {
             config,
             ..Default::default()
         };
 
-        match slf.start() {
-            Ok(_) => Ok(slf),
-            Err(e) => Err(e),
-        }
+        slf.start();
+        slf
     }
 
     pub fn new_for_test(toggle: &str, value: Value) -> Self {
@@ -106,7 +102,7 @@ impl FeatureProbe {
 
     pub fn new_with(server_key: String, repo: Repository) -> Self {
         Self {
-            config: InnerConfig {
+            config: FPConfig {
                 server_sdk_key: server_key,
                 ..Default::default()
             },
@@ -119,7 +115,7 @@ impl FeatureProbe {
     }
 
     pub fn close(&self) {
-        info!("closing featureprobe client");
+        trace!("closing featureprobe client");
         #[cfg(any(feature = "event", feature = "event_tokio"))]
         if let Some(recorder) = &self.event_recorder {
             recorder.flush();
@@ -195,19 +191,15 @@ impl FeatureProbe {
         None
     }
 
-    fn start(&mut self) -> Result<(), FPError> {
-        self.sync()?;
+    fn start(&mut self) {
+        self.sync();
         #[cfg(any(feature = "event", feature = "event_tokio"))]
-        self.flush_events()?;
-        Ok(())
+        self.flush_events();
     }
 
-    fn sync(&mut self) -> Result<(), FPError> {
-        info!("sync url {}", &self.config.toggles_url);
-        let toggles_url: Url = match Url::parse(&self.config.toggles_url) {
-            Err(e) => return Err(FPError::UrlError(e.to_string())),
-            Ok(url) => url,
-        };
+    fn sync(&mut self) {
+        trace!("sync url {}", &self.config.toggles_url);
+        let toggles_url = self.config.toggles_url.clone();
         let refresh_interval = self.config.refresh_interval;
         let auth = SdkAuthorization(self.config.server_sdk_key.clone()).encode();
         let repo = self.repo.clone();
@@ -220,17 +212,13 @@ impl FeatureProbe {
             repo,
         );
         self.syncer = Some(syncer.clone());
-        syncer.sync(self.config.start_wait, self.should_stop.clone())?;
-        Ok(())
+        syncer.sync(self.config.start_wait, self.should_stop.clone());
     }
 
     #[cfg(any(feature = "event", feature = "event_tokio"))]
-    fn flush_events(&mut self) -> Result<(), FPError> {
-        info!("flush_events");
-        let events_url: Url = match Url::parse(&self.config.events_url) {
-            Err(e) => return Err(FPError::UrlError(e.to_string())),
-            Ok(url) => url,
-        };
+    fn flush_events(&mut self) {
+        trace!("flush_events");
+        let events_url = self.config.events_url.clone();
         let flush_interval = self.config.refresh_interval;
         let auth = SdkAuthorization(self.config.server_sdk_key.clone()).encode();
         let should_stop = self.should_stop.clone();
@@ -243,58 +231,11 @@ impl FeatureProbe {
             should_stop,
         );
         self.event_recorder = Some(event_recorder);
-        Ok(())
     }
 
     #[cfg(feature = "internal")]
     pub fn repo(&self) -> Arc<RwLock<Repository>> {
         self.repo.clone()
-    }
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct FPConfig {
-    pub remote_url: String,
-    pub toggles_url: Option<String>,
-    pub events_url: Option<String>,
-    pub server_sdk_key: String,
-    pub refresh_interval: Duration,
-    #[cfg(feature = "use_tokio")]
-    pub http_client: Option<Client>,
-    pub start_wait: Option<Duration>,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct InnerConfig {
-    pub toggles_url: String,
-    pub events_url: String,
-    pub server_sdk_key: String,
-    pub refresh_interval: Duration,
-    #[cfg(feature = "use_tokio")]
-    pub http_client: Option<Client>,
-    pub start_wait: Option<Duration>,
-}
-
-fn build_config(mut config: FPConfig) -> InnerConfig {
-    info!("build_config from {:?}", config);
-    if !config.remote_url.ends_with('/') {
-        config.remote_url += "/";
-    }
-    if config.toggles_url.is_none() {
-        config.toggles_url = Some(config.remote_url.clone() + "api/server-sdk/toggles")
-    }
-    if config.events_url.is_none() {
-        config.events_url = Some(config.remote_url + "api/events")
-    }
-
-    InnerConfig {
-        toggles_url: config.toggles_url.expect("not none"),
-        events_url: config.events_url.expect("not none"),
-        server_sdk_key: config.server_sdk_key,
-        refresh_interval: config.refresh_interval,
-        start_wait: config.start_wait,
-        #[cfg(feature = "use_tokio")]
-        http_client: config.http_client,
     }
 }
 

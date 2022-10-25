@@ -483,6 +483,7 @@ impl Segment {
 pub struct Repository {
     pub(crate) segments: HashMap<String, Segment>,
     pub(crate) toggles: HashMap<String, Toggle>,
+    pub(crate) version: Option<String>,
 }
 
 fn validate_toggle(_toggle: &Toggle) -> Result<(), FPError> {
