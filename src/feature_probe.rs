@@ -8,7 +8,7 @@ use tracing::trace;
 use crate::user::FPUser;
 use crate::{
     config::Config,
-    evalutate::{EvalDetail, Repository},
+    evaluate::{EvalDetail, Repository},
 };
 use crate::{sync::Synchronizer, FPConfig};
 use crate::{FPDetail, SdkAuthorization, Toggle};
@@ -332,7 +332,7 @@ mod tests {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push(file);
         let json_str = fs::read_to_string(path).unwrap();
-        let repo = crate::evalutate::load_json(&json_str);
+        let repo = crate::evaluate::load_json(&json_str);
         assert!(repo.is_ok(), "err is {:?}", repo);
         repo
     }
