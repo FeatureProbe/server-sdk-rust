@@ -6,6 +6,7 @@ use parking_lot::RwLock;
 use reqwest::{header::AUTHORIZATION, Client, Method};
 use std::{sync::mpsc::sync_channel, time::Instant};
 use std::{sync::Arc, time::Duration};
+use tracing::trace;
 use tracing::{debug, error};
 use url::Url;
 
@@ -157,6 +158,7 @@ impl Inner {
     async fn do_sync(&self, client: &Client) -> Result<(), FPError> {
         use http::header::USER_AGENT;
 
+        trace!("do_sync {:?}", self.auth);
         let mut request = client
             .request(Method::GET, self.toggles_url.clone())
             .header(AUTHORIZATION, self.auth.clone())
@@ -194,6 +196,7 @@ impl Inner {
 
     #[cfg(feature = "use_std")]
     fn do_sync(&self) -> Result<(), FPError> {
+        trace!("do_sync {:?}", self.auth);
         //TODO: report failure
         let mut request = ureq::get(self.toggles_url.as_str())
             .set(
