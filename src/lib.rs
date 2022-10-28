@@ -35,8 +35,8 @@ pub struct FPDetail<T: Default + Debug> {
 #[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum FPError {
-    #[error("invalid json: {0}")]
-    JsonError(#[from] serde_json::Error),
+    #[error("invalid json: {0} error: {1}")]
+    JsonError(String, serde_json::Error),
     #[error("invalid url: {0}")]
     UrlError(String),
     #[error("http error: {0}")]

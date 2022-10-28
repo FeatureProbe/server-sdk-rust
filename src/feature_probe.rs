@@ -350,7 +350,8 @@ mod server_sdk_contract_tests {
 
     #[allow(dead_code)]
     pub(crate) fn load_tests_json(json_str: &str) -> Result<Tests, FPError> {
-        serde_json::from_str::<Tests>(json_str).map_err(FPError::JsonError)
+        serde_json::from_str::<Tests>(json_str)
+            .map_err(|e| FPError::JsonError(json_str.to_owned(), e))
     }
 
     #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]

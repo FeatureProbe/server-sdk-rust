@@ -176,7 +176,7 @@ impl Inner {
             Ok(resp) => match resp.text().await {
                 Err(e) => Err(FPError::HttpError(e.to_string())),
                 Ok(body) => match serde_json::from_str::<Repository>(&body) {
-                    Err(e) => Err(FPError::JsonError(e)),
+                    Err(e) => Err(FPError::JsonError(body, e)),
                     Ok(r) => {
                         // TODO: validate repo
                         // TODO: diff change, notify subscriber
@@ -216,7 +216,7 @@ impl Inner {
                 Err(e) => Err(FPError::HttpError(e.to_string())),
                 Ok(body) => {
                     match serde_json::from_str::<Repository>(&body) {
-                        Err(e) => Err(FPError::JsonError(e)),
+                        Err(e) => Err(FPError::JsonError(body, e)),
                         Ok(r) => {
                             // TODO: validate repo
                             debug!("sync success {:?}", r);
