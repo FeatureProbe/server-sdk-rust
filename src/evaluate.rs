@@ -481,9 +481,9 @@ impl Segment {
 
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
 pub struct Repository {
-    pub(crate) segments: HashMap<String, Segment>,
-    pub(crate) toggles: HashMap<String, Toggle>,
-    pub(crate) version: Option<String>,
+    pub segments: HashMap<String, Segment>,
+    pub toggles: HashMap<String, Toggle>,
+    pub version: Option<u128>,
 }
 
 fn validate_toggle(_toggle: &Toggle) -> Result<(), FPError> {
