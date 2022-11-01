@@ -168,7 +168,7 @@ impl Inner {
         {
             let repo = self.repo.read();
             if let Some(version) = &repo.version {
-                request = request.query(&["version", version]);
+                request = request.query(&[("version", &version.to_string())]);
             }
         } // drop repo lock
 
@@ -209,7 +209,7 @@ impl Inner {
         {
             let repo = self.repo.read();
             if let Some(version) = &repo.version {
-                request = request.query("version", version)
+                request = request.query("version", &version.to_string())
             }
         } // drop repo lock
 

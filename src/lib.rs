@@ -5,7 +5,7 @@ mod sync;
 mod user;
 
 pub use crate::config::FPConfig;
-pub use crate::evaluate::{load_json, Repository, Segment, Toggle};
+pub use crate::evaluate::{load_json, EvalDetail, Repository, Segment, Toggle};
 pub use crate::feature_probe::FeatureProbe;
 pub use crate::user::FPUser;
 use headers::{Error, Header, HeaderName, HeaderValue};
