@@ -479,11 +479,21 @@ impl Segment {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct Repository {
     pub segments: HashMap<String, Segment>,
     pub toggles: HashMap<String, Toggle>,
     pub version: Option<u128>,
+}
+
+impl Default for Repository {
+    fn default() -> Self {
+        Repository {
+            segments: Default::default(),
+            toggles: Default::default(),
+            version: Some(0),
+        }
+    }
 }
 
 fn validate_toggle(_toggle: &Toggle) -> Result<(), FPError> {
