@@ -1,7 +1,7 @@
 use crate::FPError;
 use crate::Repository;
 use headers::HeaderValue;
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 #[cfg(feature = "use_tokio")]
 use reqwest::{header::AUTHORIZATION, Client, Method};
 use std::{sync::mpsc::sync_channel, time::Instant};
@@ -10,12 +10,13 @@ use tracing::trace;
 use tracing::{debug, error};
 use url::Url;
 
+pub type UpdateCallback = Box<dyn Fn(Repository, Repository) + Send>;
+
 #[derive(Debug, Clone)]
 pub struct Synchronizer {
     inner: Arc<Inner>,
 }
 
-#[derive(Debug)]
 struct Inner {
     toggles_url: Url,
     refresh_interval: Duration,
@@ -24,6 +25,18 @@ struct Inner {
     client: Option<Client>,
     repo: Arc<RwLock<Repository>>,
     is_init: Arc<RwLock<bool>>,
+    update_callback: Arc<Mutex<Option<UpdateCallback>>>,
+}
+
+impl std::fmt::Debug for Inner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("SynchronizerInner")
+            .field(&self.toggles_url)
+            .field(&self.refresh_interval)
+            .field(&self.repo)
+            .field(&self.is_init)
+            .finish()
+    }
 }
 
 //TODO: graceful shutdown
@@ -44,6 +57,7 @@ impl Synchronizer {
                 client,
                 repo,
                 is_init: Default::default(),
+                update_callback: Arc::new(Mutex::new(None)),
             }),
         }
     }
@@ -115,9 +129,19 @@ impl Synchronizer {
         }
     }
 
+    pub fn set_update_callback(&mut self, update_callback: UpdateCallback) {
+        let mut lock = self.inner.update_callback.lock();
+        *lock = Some(update_callback);
+    }
+
     #[cfg(test)]
     pub fn repository(&self) -> Arc<RwLock<Repository>> {
         self.inner.repo.clone()
+    }
+
+    #[cfg(test)]
+    fn notify_update(&self, old_repo: Repository, new_repo: Repository) {
+        self.inner.notify_update(old_repo, new_repo)
     }
 
     fn init_timeout_fn(
@@ -184,7 +208,12 @@ impl Inner {
                         // TODO: diff change, notify subscriber
                         debug!("sync success {:?}", r);
                         let mut repo = self.repo.write();
-                        *repo = r;
+                        if r.version > repo.version {
+                            let old = (*repo).clone();
+                            let new = r.clone();
+                            *repo = r;
+                            self.notify_update(old, new);
+                        }
                         let mut is_init = self.is_init.write();
                         *is_init = true;
                         Ok(())
@@ -224,7 +253,12 @@ impl Inner {
                             // TODO: validate repo
                             debug!("sync success {:?}", r);
                             let mut repo = self.repo.write();
-                            *repo = r;
+                            if r.version > repo.version {
+                                let old = (*repo).clone();
+                                let new = r.clone();
+                                *repo = r;
+                                self.notify_update(old, new);
+                            }
                             let mut is_init = self.is_init.write();
                             *is_init = true;
                             Ok(())
@@ -232,6 +266,13 @@ impl Inner {
                     }
                 }
             },
+        }
+    }
+
+    fn notify_update(&self, old_repo: Repository, new_repo: Repository) {
+        let lock = self.update_callback.lock();
+        if let Some(cb) = &*lock {
+            cb(old_repo, new_repo)
         }
     }
 }
@@ -242,7 +283,20 @@ mod tests {
     use crate::SdkAuthorization;
     use axum::{routing::get, Json, Router, TypedHeader};
     use headers::UserAgent;
-    use std::{fs, net::SocketAddr, path::PathBuf};
+    use std::{fs, net::SocketAddr, path::PathBuf, sync::mpsc::channel};
+
+    #[test]
+    fn test_update_callback() {
+        let mut syncer = build_synchronizer(9000);
+        let (tx, rx) = channel();
+
+        syncer.set_update_callback(Box::new(move |_old, _new| tx.send(()).unwrap()));
+        let old = Repository::default();
+        let new = Repository::default();
+        syncer.notify_update(old, new);
+
+        assert!(rx.try_recv().is_ok())
+    }
 
     #[tokio::test]
     async fn test_init_timeout_fn() {
@@ -317,7 +371,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_sync() {
-        let _ = tracing_subscriber::fmt().init();
+        // let _ = tracing_subscriber::fmt().init();
 
         let port = 9009;
         setup_mock_api(port).await;
@@ -345,6 +399,7 @@ mod tests {
                 client: None,
                 repo: Default::default(),
                 is_init: Default::default(),
+                update_callback: Default::default(),
             }),
         }
     }

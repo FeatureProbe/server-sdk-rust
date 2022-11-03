@@ -9,7 +9,7 @@ use feature_probe_server_sdk::{FPConfig, FPUser, FeatureProbe, Url};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn integration_test() {
-    let _ = tracing_subscriber::fmt().init();
+    // let _ = tracing_subscriber::fmt().init();
 
     let api_port = 19980;
     let server_port = 19990;
@@ -18,7 +18,7 @@ async fn integration_test() {
     let config = FPConfig {
         remote_url: Url::parse(&format!("http://127.0.0.1:{}", server_port)).unwrap(),
         server_sdk_key: "server-sdk-key1".to_owned(),
-        refresh_interval: Duration::from_secs(5),
+        refresh_interval: Duration::from_secs(1),
         start_wait: Some(Duration::from_secs(5)),
         ..Default::default()
     };
@@ -27,7 +27,9 @@ async fn integration_test() {
 
     let user = FPUser::new();
 
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    assert!(fp.initialized());
 
     let b = fp.bool_detail("bool_toggle", &user, false);
     assert_eq!(b.value, true);
@@ -62,7 +64,7 @@ async fn setup_server(api_port: u16, server_port: u16) {
         client_sdk_key: Some(client_sdk_key.clone()),
         server_sdk_key: Some(server_sdk_key.clone()),
     });
-    repo.sync(client_sdk_key, server_sdk_key);
+    repo.sync(client_sdk_key, server_sdk_key, 1);
     let repo = Arc::new(repo);
     let feature_probe_server = FpHttpHandler {
         repo: repo.clone(),

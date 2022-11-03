@@ -7,6 +7,23 @@ use url::Url;
 
 #[tokio::main]
 async fn main() -> Result<(), FPError> {
+    let remote_url = url::Url::parse("http://localhost:4007").expect("invalid url");
+    // Server SDK key in Project List Page.
+    let server_sdk_key = "server-7fa2f771259cb7235b96433d70b91e99abcf6ff8".to_owned();
+
+    let config = FPConfig {
+        remote_url,
+        server_sdk_key,
+        refresh_interval: Duration::from_secs(5),
+        start_wait: Some(Duration::from_secs(5)),
+        ..Default::default()
+    };
+
+    let fp = FeatureProbe::new(config);
+    if !fp.initialized() {
+        println!("FeatureProbe failed to initialize, will return default value");
+    }
+
     let _ = tracing_subscriber::fmt().init();
     // let remote_url = "http://localhost:4009/server"; // for local docker
     let remote_url = Url::parse("https://featureprobe.io/server").expect("invalid url");

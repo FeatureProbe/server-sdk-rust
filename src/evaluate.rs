@@ -11,14 +11,14 @@ use std::string::String;
 use std::{collections::HashMap, str::FromStr};
 use tracing::{info, warn};
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum Serve {
     Select(usize),
     Split(Distribution),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Variation {
     pub value: Value,
     pub index: usize,
@@ -52,10 +52,10 @@ impl Serve {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 struct BucketRange((u32, u32));
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Distribution {
     distribution: Vec<Vec<BucketRange>>,
@@ -140,7 +140,7 @@ pub struct EvalDetail<T> {
     pub reason: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Toggle {
     key: String,
@@ -296,7 +296,7 @@ struct DefaultRule {
     pub serve: Serve,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 struct Rule {
     serve: Serve,
     conditions: Vec<Condition>,
@@ -479,10 +479,11 @@ impl Segment {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Repository {
     pub segments: HashMap<String, Segment>,
     pub toggles: HashMap<String, Toggle>,
+    // TODO: remove option next release
     pub version: Option<u128>,
 }
 

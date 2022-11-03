@@ -5,12 +5,12 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use tracing::trace;
 
-use crate::user::FPUser;
 use crate::{
     config::Config,
     evaluate::{EvalDetail, Repository},
 };
 use crate::{sync::Synchronizer, FPConfig};
+use crate::{sync::UpdateCallback, user::FPUser};
 use crate::{FPDetail, SdkAuthorization, Toggle};
 #[cfg(feature = "event")]
 use feature_probe_event_std::event::AccessEvent;
@@ -25,7 +25,7 @@ use feature_probe_event_tokio::recorder::unix_timestamp;
 #[cfg(feature = "event_tokio")]
 use feature_probe_event_tokio::recorder::EventRecorder;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct FeatureProbe {
     repo: Arc<RwLock<Repository>>,
     syncer: Option<Synchronizer>,
@@ -33,6 +33,17 @@ pub struct FeatureProbe {
     event_recorder: Option<EventRecorder>,
     config: Config,
     should_stop: Arc<RwLock<bool>>,
+}
+
+impl Debug for FeatureProbe {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("FeatureProbe")
+            .field(&self.repo)
+            .field(&self.syncer)
+            .field(&self.config)
+            .field(&self.should_stop)
+            .finish()
+    }
 }
 
 impl FeatureProbe {
@@ -129,6 +140,12 @@ impl FeatureProbe {
         match &self.syncer {
             Some(s) => s.initialized(),
             None => false,
+        }
+    }
+
+    pub fn set_update_callback(&mut self, update_callback: UpdateCallback) {
+        if let Some(syncer) = &mut self.syncer {
+            syncer.set_update_callback(update_callback)
         }
     }
 
