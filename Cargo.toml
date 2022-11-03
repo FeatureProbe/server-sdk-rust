@@ -27,7 +27,7 @@ event_tokio = ["feature-probe-event-tokio"]
 [dependencies]
 anyhow = "1.0"
 byteorder = "1"
-dashmap = "5.1"
+dashmap = "5.4"
 headers = "0.3"
 http = "0.2"
 lazy_static = "1.4"
