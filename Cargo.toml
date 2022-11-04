@@ -21,8 +21,9 @@ default = ["use_std", "event"]
 internal = []
 use_std = ["ureq"]
 event = ["feature-probe-event-std"]
-use_tokio = ["reqwest", "tokio"]
+use_tokio = ["reqwest", "tokio", "futures-util"]
 event_tokio = ["feature-probe-event-tokio"]
+realtime = ["socketio-rs"]
 
 [dependencies]
 anyhow = "1.0"
@@ -54,6 +55,11 @@ reqwest = { optional = true, version = "0.11", default-features = false, feature
 ] }
 tokio = { optional = true, version = "1", features = ["full"] }
 ureq = { optional = true, version = "2.4" }
+
+socketio-rs = { optional = true, version = "0.1" }
+futures-util = { optional = true, version = "0.3", default-features = false, features = [
+  "sink",
+] }
 
 [dev-dependencies]
 approx = "0.5"

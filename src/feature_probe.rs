@@ -1,5 +1,7 @@
 use parking_lot::RwLock;
 use serde_json::Value;
+#[cfg(all(feature = "use_tokio", feature = "realtime"))]
+use socketio_rs::Client;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -24,6 +26,11 @@ use feature_probe_event_tokio::event::AccessEvent;
 use feature_probe_event_tokio::recorder::unix_timestamp;
 #[cfg(feature = "event_tokio")]
 use feature_probe_event_tokio::recorder::EventRecorder;
+#[cfg(all(feature = "use_tokio", feature = "realtime"))]
+use futures_util::FutureExt;
+
+#[cfg(all(feature = "use_tokio", feature = "realtime"))]
+type SocketCallback = std::pin::Pin<Box<dyn futures_util::Future<Output = ()> + Send>>;
 
 #[derive(Default, Clone)]
 pub struct FeatureProbe {
@@ -33,6 +40,8 @@ pub struct FeatureProbe {
     event_recorder: Option<EventRecorder>,
     config: Config,
     should_stop: Arc<RwLock<bool>>,
+    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    socket: Option<Client>,
 }
 
 impl Debug for FeatureProbe {
@@ -123,6 +132,8 @@ impl FeatureProbe {
             #[cfg(any(feature = "event", feature = "event_tokio"))]
             event_recorder: None,
             should_stop: Arc::new(RwLock::new(false)),
+            #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+            socket: None,
         }
     }
 
@@ -211,6 +222,10 @@ impl FeatureProbe {
 
     fn start(&mut self) {
         self.sync();
+
+        #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+        self.connect_socket();
+
         #[cfg(any(feature = "event", feature = "event_tokio"))]
         self.flush_events();
     }
@@ -226,11 +241,70 @@ impl FeatureProbe {
             refresh_interval,
             auth,
             #[cfg(feature = "use_tokio")]
-            self.config.http_client.clone(),
+            self.config.http_client.clone().unwrap_or_default(),
             repo,
         );
         self.syncer = Some(syncer.clone());
-        syncer.sync(self.config.start_wait, self.should_stop.clone());
+        syncer.start_sync(self.config.start_wait, self.should_stop.clone());
+    }
+
+    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    fn connect_socket(&mut self) {
+        let mut slf = self.clone();
+        let slf2 = self.clone();
+        tokio::spawn(async move {
+            let url = slf.config.realtime_url;
+            let server_sdk_key = slf.config.server_sdk_key.clone();
+            tracing::trace!("connect_socket {}", url);
+            let client = socketio_rs::ClientBuilder::new(url.clone())
+                .namespace("/")
+                .on(socketio_rs::Event::Connect, move |_, socket, _| {
+                    Self::socket_on_connect(socket, server_sdk_key.clone())
+                })
+                .on(
+                    "update",
+                    move |payload: Option<socketio_rs::Payload>, _, _| {
+                        Self::socket_on_update(slf2.clone(), payload)
+                    },
+                )
+                .on("error", |err, _, _| {
+                    async move { tracing::error!("socket on error: {:#?}", err) }.boxed()
+                })
+                .connect()
+                .await;
+            match client {
+                Err(e) => tracing::error!("connect_socket error: {:?}", e),
+                Ok(client) => slf.socket = Some(client),
+            };
+        });
+    }
+
+    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    fn socket_on_connect(socket: socketio_rs::Socket, server_sdk_key: String) -> SocketCallback {
+        let sdk_key = server_sdk_key;
+        trace!("on conect: {:?}", sdk_key);
+        async move {
+            if let Err(e) = socket
+                .emit("register", serde_json::json!({ "sdk_key": sdk_key }))
+                .await
+            {
+                tracing::error!("register error: {:?}", e);
+            }
+        }
+        .boxed()
+    }
+
+    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    fn socket_on_update(slf: Self, payload: Option<socketio_rs::Payload>) -> SocketCallback {
+        trace!("on update: {:?}", payload);
+        async move {
+            if let Some(syncer) = &slf.syncer {
+                let _ = syncer.sync_now().await;
+            } else {
+                tracing::warn!("socket receive update event, but no synchronizer");
+            }
+        }
+        .boxed()
     }
 
     #[cfg(any(feature = "event", feature = "event_tokio"))]

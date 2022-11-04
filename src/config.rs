@@ -10,6 +10,8 @@ pub struct FPConfig {
     pub remote_url: Url,
     pub toggles_url: Option<Url>,
     pub events_url: Option<Url>,
+    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    pub realtime_url: Option<Url>,
     pub server_sdk_key: String,
     pub refresh_interval: Duration,
     #[cfg(feature = "use_tokio")]
@@ -19,6 +21,8 @@ pub struct FPConfig {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Config {
+    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    pub realtime_url: Url,
     pub toggles_url: Url,
     pub events_url: Url,
     pub server_sdk_key: String,
@@ -39,6 +43,8 @@ impl Default for FPConfig {
             start_wait: None,
             #[cfg(feature = "use_tokio")]
             http_client: None,
+            #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+            realtime_url: None,
         }
     }
 }
@@ -47,6 +53,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             server_sdk_key: "".to_owned(),
+            #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+            realtime_url: Url::parse("http://127.0.0.1:9090").unwrap(), // TODO: set by config
             toggles_url: Url::parse("http://127.0.0.1:8080").unwrap(),
             events_url: Url::parse("http://127.0.0.1:8080").unwrap(),
             refresh_interval: Duration::from_secs(5),
@@ -66,15 +74,22 @@ impl FPConfig {
             false => remote_url + "/",
         };
 
-        let toggles_url = match &self.toggles_url {
+        #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+        let realtime_url = match self.realtime_url {
             None => {
-                Url::parse(&(remote_url.clone() + "api/server-sdk/toggles")).expect("invalid url")
+                Url::parse(&(remote_url.clone() + "api/realtime")).expect("invalid realtime url")
             }
             Some(url) => url.to_owned(),
         };
 
+        let toggles_url = match &self.toggles_url {
+            None => Url::parse(&(remote_url.clone() + "api/server-sdk/toggles"))
+                .expect("invalid toggles url"),
+            Some(url) => url.to_owned(),
+        };
+
         let events_url = match &self.events_url {
-            None => Url::parse(&(remote_url + "api/events")).expect("invalid url"),
+            None => Url::parse(&(remote_url + "api/events")).expect("invalid events url"),
             Some(url) => url.to_owned(),
         };
 
@@ -86,6 +101,8 @@ impl FPConfig {
             start_wait: self.start_wait,
             #[cfg(feature = "use_tokio")]
             http_client: self.http_client.clone(),
+            #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+            realtime_url,
         }
     }
 }
