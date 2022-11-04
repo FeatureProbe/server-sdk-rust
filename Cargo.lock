@@ -639,7 +639,7 @@ dependencies = [
  "base64",
  "config",
  "feature-probe-event",
- "feature-probe-server-sdk 1.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "feature-probe-server-sdk 1.2.5",
  "futures",
  "log",
  "parking_lot",
@@ -660,6 +660,33 @@ dependencies = [
 [[package]]
 name = "feature-probe-server-sdk"
 version = "1.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "706c87ad5ee1c882f0ef7e5f336fd3bfef7947d5b27f206bfb0354d76151d4da"
+dependencies = [
+ "anyhow",
+ "byteorder",
+ "dashmap",
+ "headers",
+ "http",
+ "lazy_static",
+ "minstant",
+ "parking_lot",
+ "rand",
+ "regex",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha1",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "feature-probe-server-sdk"
+version = "1.2.6"
 dependencies = [
  "anyhow",
  "approx",
@@ -691,33 +718,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "ureq",
- "url",
-]
-
-[[package]]
-name = "feature-probe-server-sdk"
-version = "1.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "706c87ad5ee1c882f0ef7e5f336fd3bfef7947d5b27f206bfb0354d76151d4da"
-dependencies = [
- "anyhow",
- "byteorder",
- "dashmap",
- "headers",
- "http",
- "lazy_static",
- "minstant",
- "parking_lot",
- "rand",
- "regex",
- "reqwest",
- "semver",
- "serde",
- "serde_json",
- "sha1",
- "thiserror",
- "tokio",
- "tracing",
  "url",
 ]
 
