@@ -282,7 +282,7 @@ impl FeatureProbe {
     #[cfg(all(feature = "use_tokio", feature = "realtime"))]
     fn socket_on_connect(socket: socketio_rs::Socket, server_sdk_key: String) -> SocketCallback {
         let sdk_key = server_sdk_key;
-        trace!("on conect: {:?}", sdk_key);
+        trace!("socket_on_connect: {:?}", sdk_key);
         async move {
             if let Err(e) = socket
                 .emit("register", serde_json::json!({ "sdk_key": sdk_key }))
@@ -296,10 +296,12 @@ impl FeatureProbe {
 
     #[cfg(all(feature = "use_tokio", feature = "realtime"))]
     fn socket_on_update(slf: Self, payload: Option<socketio_rs::Payload>) -> SocketCallback {
-        trace!("on update: {:?}", payload);
+        use crate::sync::SyncType;
+
+        trace!("socket_on_update: {:?}", payload);
         async move {
             if let Some(syncer) = &slf.syncer {
-                let _ = syncer.sync_now().await;
+                let _ = syncer.sync_now(SyncType::Realtime).await;
             } else {
                 tracing::warn!("socket receive update event, but no synchronizer");
             }

@@ -629,9 +629,9 @@ dependencies = [
 
 [[package]]
 name = "feature-probe-server"
-version = "1.3.3"
+version = "1.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26c402cda771922a782990df9026097ff15f99fc2e33c78e3d481c0e94e66ce1"
+checksum = "3ee4c73e8e12860883421de32a52888a0022902539cf0e50cfe82c79f2047f58"
 dependencies = [
  "anyhow",
  "axum",
@@ -639,13 +639,14 @@ dependencies = [
  "base64",
  "config",
  "feature-probe-event",
- "feature-probe-server-sdk 1.2.5",
+ "feature-probe-server-sdk 1.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures",
  "log",
  "parking_lot",
  "reqwest",
  "serde",
  "serde_json",
+ "socketio-rs",
  "thiserror",
  "time",
  "tokio",
@@ -655,33 +656,6 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "vergen",
-]
-
-[[package]]
-name = "feature-probe-server-sdk"
-version = "1.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "706c87ad5ee1c882f0ef7e5f336fd3bfef7947d5b27f206bfb0354d76151d4da"
-dependencies = [
- "anyhow",
- "byteorder",
- "dashmap",
- "headers",
- "http",
- "lazy_static",
- "minstant",
- "parking_lot",
- "rand",
- "regex",
- "reqwest",
- "semver",
- "serde",
- "serde_json",
- "sha1",
- "thiserror",
- "tokio",
- "tracing",
- "url",
 ]
 
 [[package]]
@@ -718,6 +692,34 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "ureq",
+ "url",
+]
+
+[[package]]
+name = "feature-probe-server-sdk"
+version = "1.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd0916b079980150a4d3053a759bf30f3940ba4f13239fea7e2f9d033834aa7a"
+dependencies = [
+ "anyhow",
+ "byteorder",
+ "dashmap",
+ "futures-util",
+ "headers",
+ "http",
+ "lazy_static",
+ "minstant",
+ "parking_lot",
+ "rand",
+ "regex",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha1",
+ "thiserror",
+ "tokio",
+ "tracing",
  "url",
 ]
 

@@ -7,6 +7,7 @@ mod user;
 pub use crate::config::FPConfig;
 pub use crate::evaluate::{load_json, EvalDetail, Repository, Segment, Toggle};
 pub use crate::feature_probe::FeatureProbe;
+pub use crate::sync::SyncType;
 pub use crate::user::FPUser;
 use headers::{Error, Header, HeaderName, HeaderValue};
 use http::header::AUTHORIZATION;

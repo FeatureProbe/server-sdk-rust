@@ -10,11 +10,17 @@ use tracing::trace;
 use tracing::{debug, error};
 use url::Url;
 
-pub type UpdateCallback = Box<dyn Fn(Repository, Repository) + Send>;
+pub type UpdateCallback = Box<dyn Fn(Repository, Repository, SyncType) + Send>;
 
 #[derive(Debug, Clone)]
 pub struct Synchronizer {
     inner: Arc<Inner>,
+}
+
+#[derive(Debug)]
+pub enum SyncType {
+    Realtime,
+    Polling,
 }
 
 struct Inner {
@@ -77,7 +83,9 @@ impl Synchronizer {
 
         let is_timeout = Self::init_timeout_fn(start_wait, interval_duration, start);
         std::thread::spawn(move || loop {
-            if let Some(r) = Self::should_send(inner.sync_now(), &is_timeout, is_send) {
+            if let Some(r) =
+                Self::should_send(inner.sync_now(SyncType::Polling), &is_timeout, is_send)
+            {
                 is_send = true;
                 let _ = tx.try_send(r);
             }
@@ -105,7 +113,7 @@ impl Synchronizer {
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(inner.refresh_interval);
             loop {
-                let result = inner.sync_now().await;
+                let result = inner.sync_now(SyncType::Polling).await;
 
                 if let Some(r) = Self::should_send(result, &is_timeout, is_send) {
                     is_send = true;
@@ -135,8 +143,8 @@ impl Synchronizer {
     }
 
     #[cfg(test)]
-    fn notify_update(&self, old_repo: Repository, new_repo: Repository) {
-        self.inner.notify_update(old_repo, new_repo)
+    fn notify_update(&self, old_repo: Repository, new_repo: Repository, t: SyncType) {
+        self.inner.notify_update(old_repo, new_repo, t)
     }
 
     fn init_timeout_fn(
@@ -172,17 +180,17 @@ impl Synchronizer {
     }
 
     #[cfg(all(feature = "use_tokio", feature = "realtime"))]
-    pub async fn sync_now(&self) -> Result<(), FPError> {
-        self.inner.sync_now().await
+    pub async fn sync_now(&self, t: SyncType) -> Result<(), FPError> {
+        self.inner.sync_now(t).await
     }
 }
 
 impl Inner {
     #[cfg(feature = "use_tokio")]
-    pub async fn sync_now(&self) -> Result<(), FPError> {
+    pub async fn sync_now(&self, t: SyncType) -> Result<(), FPError> {
         use http::header::USER_AGENT;
 
-        trace!("sync now {:?}", self.auth);
+        trace!("sync_now {:?} {:?}", self.auth, t);
         let mut request = self
             .client
             .request(Method::GET, self.toggles_url.clone())
@@ -213,7 +221,7 @@ impl Inner {
                             let old = (*repo).clone();
                             let new = r.clone();
                             *repo = r;
-                            self.notify_update(old, new);
+                            self.notify_update(old, new, t);
                         }
                         let mut is_init = self.is_init.write();
                         *is_init = true;
@@ -225,8 +233,8 @@ impl Inner {
     }
 
     #[cfg(feature = "use_std")]
-    pub fn sync_now(&self) -> Result<(), FPError> {
-        trace!("sync_now {:?}", self.auth);
+    pub fn sync_now(&self, t: SyncType) -> Result<(), FPError> {
+        trace!("sync_now {:?}, {:?}", self.auth, t);
         //TODO: report failure
         let mut request = ureq::get(self.toggles_url.as_str())
             .set(
@@ -258,7 +266,7 @@ impl Inner {
                                 let old = (*repo).clone();
                                 let new = r.clone();
                                 *repo = r;
-                                self.notify_update(old, new);
+                                self.notify_update(old, new, t);
                             }
                             let mut is_init = self.is_init.write();
                             *is_init = true;
@@ -270,10 +278,10 @@ impl Inner {
         }
     }
 
-    fn notify_update(&self, old_repo: Repository, new_repo: Repository) {
+    fn notify_update(&self, old_repo: Repository, new_repo: Repository, t: SyncType) {
         let lock = self.update_callback.lock();
         if let Some(cb) = &*lock {
-            cb(old_repo, new_repo)
+            cb(old_repo, new_repo, t)
         }
     }
 }
@@ -291,10 +299,10 @@ mod tests {
         let mut syncer = build_synchronizer(9000);
         let (tx, rx) = channel();
 
-        syncer.set_update_callback(Box::new(move |_old, _new| tx.send(()).unwrap()));
+        syncer.set_update_callback(Box::new(move |_old, _new, _| tx.send(()).unwrap()));
         let old = Repository::default();
         let new = Repository::default();
-        syncer.notify_update(old, new);
+        syncer.notify_update(old, new, SyncType::Polling);
 
         assert!(rx.try_recv().is_ok())
     }

@@ -1,29 +1,53 @@
 use std::{sync::Arc, time::Duration};
 
 use feature_probe_server::{
-    http::{serve_http, FpHttpHandler, LocalFileHttpHandler},
+    http::{serve_http, FpHttpHandler, LocalFileHttpHandlerForTest},
+    realtime::RealtimeSocket,
     repo::SdkRepository,
     ServerConfig,
 };
-use feature_probe_server_sdk::{FPConfig, FPUser, FeatureProbe, Url};
+use feature_probe_server_sdk::{FPConfig, FPUser, FeatureProbe, SyncType, Url};
+use parking_lot::Mutex;
+use tracing::info;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn integration_test() {
-    // let _ = tracing_subscriber::fmt().init();
+    // let _ = tracing_subscriber::fmt()
+    //     .with_env_filter("feature_probe_server_sdk=trace,integration=trace")
+    //     .pretty()
+    //     .init();
 
     let api_port = 19980;
     let server_port = 19990;
-    setup_server(api_port, server_port).await;
+    let realtime_port = 19999;
+    setup_server(api_port, server_port, realtime_port).await;
 
     let config = FPConfig {
         remote_url: Url::parse(&format!("http://127.0.0.1:{}", server_port)).unwrap(),
         server_sdk_key: "server-sdk-key1".to_owned(),
-        refresh_interval: Duration::from_secs(1),
+        refresh_interval: Duration::from_secs(2),
         start_wait: Some(Duration::from_secs(5)),
+        #[cfg(feature = "realtime")]
+        realtime_url: Some(Url::parse(&format!("http://127.0.0.1:{}", realtime_port)).unwrap()),
         ..Default::default()
     };
 
-    let fp = FeatureProbe::new(config);
+    let mut fp = FeatureProbe::new(config);
+
+    let did_update = {
+        let did_update = Arc::new(Mutex::new((false, false)));
+        let did_update_clone = did_update.clone();
+
+        fp.set_update_callback(Box::new(move |_old, _new, t| {
+            let mut lock = did_update_clone.lock();
+            match t {
+                SyncType::Realtime => lock.0 = true,
+                SyncType::Polling => lock.1 = true,
+            };
+        }));
+
+        did_update
+    };
 
     let user = FPUser::new();
 
@@ -32,14 +56,22 @@ async fn integration_test() {
     assert!(fp.initialized());
 
     let b = fp.bool_detail("bool_toggle", &user, false);
-    assert_eq!(b.value, true);
+    assert!(b.value);
+
+    tokio::time::sleep(Duration::from_millis(3000)).await;
+    let lock = did_update.lock();
+    #[cfg(feature = "realtime")]
+    assert!(lock.0);
+    #[cfg(not(feature = "realtime"))]
+    assert!(lock.1);
 }
 
-async fn setup_server(api_port: u16, server_port: u16) {
+async fn setup_server(api_port: u16, server_port: u16, realtime_port: u16) {
+    let mut mock_api = LocalFileHttpHandlerForTest::default();
+    mock_api.version_update = true;
     // mock fp api
-    tokio::spawn(serve_http::<LocalFileHttpHandler>(
-        api_port,
-        LocalFileHttpHandler {},
+    tokio::spawn(serve_http::<LocalFileHttpHandlerForTest>(
+        api_port, mock_api,
     ));
 
     let server_sdk_key = "server-sdk-key1".to_owned();
@@ -55,15 +87,18 @@ async fn setup_server(api_port: u16, server_port: u16) {
         .parse()
         .unwrap();
     let refresh_interval = Duration::from_secs(1);
-    let repo = SdkRepository::new(ServerConfig {
+    let config = ServerConfig {
         toggles_url,
         server_port,
+        realtime_port,
         refresh_interval,
         keys_url: None,
         events_url: events_url.clone(),
         client_sdk_key: Some(client_sdk_key.clone()),
         server_sdk_key: Some(server_sdk_key.clone()),
-    });
+    };
+    let realtime_socket = RealtimeSocket::serve(config.realtime_port);
+    let repo = SdkRepository::new(config, realtime_socket);
     repo.sync(client_sdk_key, server_sdk_key, 1);
     let repo = Arc::new(repo);
     let feature_probe_server = FpHttpHandler {
