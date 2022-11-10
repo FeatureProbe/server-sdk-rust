@@ -8,7 +8,6 @@ use feature_probe_server::{
 };
 use feature_probe_server_sdk::{FPConfig, FPUser, FeatureProbe, SyncType, Url};
 use parking_lot::Mutex;
-use tracing::info;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn integration_test() {

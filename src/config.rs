@@ -76,9 +76,7 @@ impl FPConfig {
 
         #[cfg(all(feature = "use_tokio", feature = "realtime"))]
         let realtime_url = match &self.realtime_url {
-            None => {
-                Url::parse(&(remote_url.clone() + "api/realtime")).expect("invalid realtime url")
-            }
+            None => Url::parse(&(remote_url.clone() + "realtime")).expect("invalid realtime url"),
             Some(url) => url.to_owned(),
         };
 
