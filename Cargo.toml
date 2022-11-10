@@ -56,7 +56,7 @@ reqwest = { optional = true, version = "0.11", default-features = false, feature
 tokio = { optional = true, version = "1", features = ["full"] }
 ureq = { optional = true, version = "2.4" }
 
-socketio-rs = { optional = true, version = "0.1.1" }
+socketio-rs = { optional = true, version = "0.1.2" }
 futures-util = { optional = true, version = "0.3", default-features = false, features = [
   "sink",
 ] }
