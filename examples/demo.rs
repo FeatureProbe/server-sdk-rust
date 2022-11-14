@@ -12,7 +12,7 @@ async fn main() -> Result<(), FPError> {
     let remote_url = Url::parse("https://featureprobe.io/server").expect("invalid url");
     // Server SDK key in Project List Page.
     let server_sdk_key = "server-7fa2f771259cb7235b96433d70b91e99abcf6ff8".to_owned();
-    let refresh_interval = Duration::from_millis(2000);
+    let refresh_interval = Duration::from_secs(20);
 
     let config = FPConfig {
         remote_url,
