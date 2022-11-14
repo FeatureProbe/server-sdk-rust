@@ -7,7 +7,7 @@ use url::Url;
 
 #[tokio::main]
 async fn main() -> Result<(), FPError> {
-    let _ = tracing_subscriber::fmt().init();
+    tracing_subscriber::fmt::init();
     // let remote_url = "http://localhost:4009/server"; // for local docker
     let remote_url = Url::parse("https://featureprobe.io/server").expect("invalid url");
     // Server SDK key in Project List Page.
