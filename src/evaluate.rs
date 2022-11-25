@@ -789,7 +789,7 @@ mod condition_tests {
         }
         "#;
 
-        let condition = serde_json::from_str::<Condition>(&json_str);
+        let condition = serde_json::from_str::<Condition>(json_str);
         assert!(condition.is_ok());
         let condition = condition.unwrap();
         assert_eq!(condition.r#type, ConditionType::Unknown);

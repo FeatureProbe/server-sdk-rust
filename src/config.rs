@@ -10,19 +10,20 @@ pub struct FPConfig {
     pub remote_url: Url,
     pub toggles_url: Option<Url>,
     pub events_url: Option<Url>,
-    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
-    pub realtime_url: Option<Url>,
     pub server_sdk_key: String,
     pub refresh_interval: Duration,
     #[cfg(feature = "use_tokio")]
     pub http_client: Option<Client>,
     pub start_wait: Option<Duration>,
+
+    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    pub realtime_url: Option<Url>,
+    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    pub realtime_path: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct Config {
-    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
-    pub realtime_url: Url,
     pub toggles_url: Url,
     pub events_url: Url,
     pub server_sdk_key: String,
@@ -30,21 +31,29 @@ pub(crate) struct Config {
     #[cfg(feature = "use_tokio")]
     pub http_client: Option<Client>,
     pub start_wait: Option<Duration>,
+
+    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    pub realtime_url: Url,
+    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    pub realtime_path: String,
 }
 
 impl Default for FPConfig {
     fn default() -> Self {
         Self {
             server_sdk_key: "".to_owned(),
-            remote_url: Url::parse("http://127.0.0.1:8080").unwrap(),
+            remote_url: Url::parse("https://featureprobe.io/server").unwrap(),
             toggles_url: None,
             events_url: None,
             refresh_interval: Duration::from_secs(5),
             start_wait: None,
             #[cfg(feature = "use_tokio")]
             http_client: None,
+
             #[cfg(all(feature = "use_tokio", feature = "realtime"))]
             realtime_url: None,
+            #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+            realtime_path: None,
         }
     }
 }
@@ -53,14 +62,18 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             server_sdk_key: "".to_owned(),
-            #[cfg(all(feature = "use_tokio", feature = "realtime"))]
-            realtime_url: Url::parse("http://127.0.0.1:9090").unwrap(), // TODO: set by config
-            toggles_url: Url::parse("http://127.0.0.1:8080").unwrap(),
-            events_url: Url::parse("http://127.0.0.1:8080").unwrap(),
-            refresh_interval: Duration::from_secs(5),
+            toggles_url: Url::parse("https://featureprobe.io/server/api/server-sdk/toggles")
+                .unwrap(),
+            events_url: Url::parse("https://featureprobe.io/server/api/events").unwrap(),
+            refresh_interval: Duration::from_secs(60),
             start_wait: None,
             #[cfg(feature = "use_tokio")]
             http_client: None,
+
+            #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+            realtime_url: Url::parse("https://featureprobe.io/server/realtime").unwrap(),
+            #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+            realtime_path: "/server/realtime".to_owned(),
         }
     }
 }
@@ -78,6 +91,12 @@ impl FPConfig {
         let realtime_url = match &self.realtime_url {
             None => Url::parse(&(remote_url.clone() + "realtime")).expect("invalid realtime url"),
             Some(url) => url.to_owned(),
+        };
+
+        #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+        let realtime_path = match &self.realtime_path {
+            Some(p) => p.to_owned(),
+            None => realtime_url.path().to_owned(),
         };
 
         let toggles_url = match &self.toggles_url {
@@ -101,6 +120,8 @@ impl FPConfig {
             http_client: self.http_client.clone(),
             #[cfg(all(feature = "use_tokio", feature = "realtime"))]
             realtime_url,
+            #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+            realtime_path,
         }
     }
 }

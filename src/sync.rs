@@ -429,7 +429,7 @@ mod tests {
         TypedHeader(user_agent): TypedHeader<UserAgent>,
     ) -> Json<Repository> {
         assert_eq!(sdk_key, "sdk-key");
-        assert!(user_agent.to_string().len() > 0);
+        assert!(!user_agent.to_string().is_empty());
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push("resources/fixtures/repo.json");
         let json_str = fs::read_to_string(path).unwrap();

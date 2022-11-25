@@ -252,12 +252,13 @@ impl FeatureProbe {
     fn connect_socket(&mut self) {
         let mut slf = self.clone();
         let slf2 = self.clone();
+        let nsp = self.config.realtime_path.clone();
         tokio::spawn(async move {
             let url = slf.config.realtime_url;
             let server_sdk_key = slf.config.server_sdk_key.clone();
             tracing::trace!("connect_socket {}", url);
             let client = socketio_rs::ClientBuilder::new(url.clone())
-                .namespace("/")
+                .namespace(&nsp)
                 .on(socketio_rs::Event::Connect, move |_, socket, _| {
                     Self::socket_on_connect(socket, server_sdk_key.clone())
                 })
@@ -285,7 +286,7 @@ impl FeatureProbe {
         trace!("socket_on_connect: {:?}", sdk_key);
         async move {
             if let Err(e) = socket
-                .emit("register", serde_json::json!({ "sdk_key": sdk_key }))
+                .emit("register", serde_json::json!({ "key": sdk_key }))
                 .await
             {
                 tracing::error!("register error: {:?}", e);
@@ -403,7 +404,7 @@ mod tests {
 
         assert!(fp.bool_value("none_exist_toggle", &u, true));
         let d = fp.bool_detail("none_exist_toggle", &u, true);
-        assert_eq!(d.value, true);
+        assert!(d.value);
         assert_eq!(d.rule_index, None);
     }
 
@@ -411,7 +412,7 @@ mod tests {
     fn test_for_ut() {
         let fp = FeatureProbe::new_for_test("toggle_1", Value::Bool(false));
         let u = FPUser::new();
-        assert_eq!(fp.bool_value("toggle_1", &u, true), false);
+        assert!(!fp.bool_value("toggle_1", &u, true));
 
         let mut toggles: HashMap<String, Value> = HashMap::new();
         toggles.insert("toggle_2".to_owned(), json!(12.5));
@@ -460,7 +461,7 @@ mod server_sdk_contract_tests {
         pub(crate) fixture: Repository,
     }
 
-    #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
+    #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
     #[serde(rename_all = "camelCase")]
     pub struct Case {
         pub(crate) name: String,
@@ -469,27 +470,27 @@ mod server_sdk_contract_tests {
         pub(crate) expect_result: ExpectResult,
     }
 
-    #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
+    #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
     #[serde(rename_all = "camelCase")]
     pub struct User {
         pub(crate) key: String,
         pub(crate) custom_values: Vec<KeyValue>,
     }
 
-    #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
+    #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
     pub struct KeyValue {
         pub(crate) key: String,
         pub(crate) value: String,
     }
 
-    #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
+    #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
     pub struct Function {
         pub(crate) name: String,
         pub(crate) toggle: String,
         pub(crate) default: Value,
     }
 
-    #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
+    #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
     #[serde(rename_all = "camelCase")]
     pub struct ExpectResult {
         pub(crate) value: Value,
@@ -589,7 +590,7 @@ mod server_sdk_contract_tests {
                             case.expect_result.value
                         );
                     }
-                    _ => assert!(false, "function name {} not found.", case.function.name),
+                    _ => panic!("function name {} not found.", case.function.name),
                 }
             }
         }
