@@ -11,15 +11,18 @@ use parking_lot::Mutex;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn integration_test() {
-    // let _ = tracing_subscriber::fmt()
-    //     .with_env_filter("feature_probe_server_sdk=trace,integration=trace")
+    // tracing_subscriber::fmt()
+    //     .with_env_filter(
+    //         "feature_probe_server_sdk=trace,integration=trace,socket=trace,engine=trace",
+    //     )
     //     .pretty()
     //     .init();
 
     let api_port = 19980;
     let server_port = 19990;
     let realtime_port = 19999;
-    setup_server(api_port, server_port, realtime_port).await;
+    let realtime_path = "/".to_owned();
+    setup_server(api_port, server_port, realtime_port, realtime_path).await;
 
     let config = FPConfig {
         remote_url: Url::parse(&format!("http://127.0.0.1:{}", server_port)).unwrap(),
@@ -65,7 +68,7 @@ async fn integration_test() {
     assert!(lock.1);
 }
 
-async fn setup_server(api_port: u16, server_port: u16, realtime_port: u16) {
+async fn setup_server(api_port: u16, server_port: u16, realtime_port: u16, realtime_path: String) {
     let mut mock_api = LocalFileHttpHandlerForTest::default();
     mock_api.version_update = true;
     // mock fp api
@@ -90,13 +93,14 @@ async fn setup_server(api_port: u16, server_port: u16, realtime_port: u16) {
         toggles_url,
         server_port,
         realtime_port,
+        realtime_path,
         refresh_interval,
         keys_url: None,
         events_url: events_url.clone(),
         client_sdk_key: Some(client_sdk_key.clone()),
         server_sdk_key: Some(server_sdk_key.clone()),
     };
-    let realtime_socket = RealtimeSocket::serve(config.realtime_port);
+    let realtime_socket = RealtimeSocket::serve(config.realtime_port, &config.realtime_path);
     let repo = SdkRepository::new(config, realtime_socket);
     repo.sync(client_sdk_key, server_sdk_key, 1);
     let repo = Arc::new(repo);
