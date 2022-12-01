@@ -64,7 +64,7 @@ futures-util = { optional = true, version = "0.3", default-features = false, fea
 [dev-dependencies]
 approx = "0.5"
 axum = { version = "0.5", features = ["headers"] }
-axum-extra = { version = "0.2", features = ["typed-routing"] }
+axum-extra = { version = "0.4", features = ["typed-routing"] }
 clap = { version = "3.1.10", features = ["derive"] }
 criterion = "0.3"
 rusty-hook = "^0.11.2"
