@@ -251,7 +251,7 @@ impl FeatureProbe {
     }
 
     #[cfg(all(feature = "use_tokio", feature = "realtime"))]
-    pub fn sync_once(&self, t: SyncType) {
+    pub fn sync_now(&self, t: SyncType) {
         trace!("sync now url {}", &self.config.toggles_url);
         let syncer = match &self.syncer {
             Some(syncer) => syncer.clone(),
