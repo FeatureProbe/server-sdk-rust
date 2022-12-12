@@ -7,6 +7,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use tracing::trace;
 
+#[cfg(all(feature = "use_tokio", feature = "realtime"))]
+use crate::sync::SyncType;
 use crate::{
     config::Config,
     evaluate::{EvalDetail, Repository},
@@ -249,6 +251,18 @@ impl FeatureProbe {
     }
 
     #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    pub fn sync_once(&self, t: SyncType) {
+        trace!("sync now url {}", &self.config.toggles_url);
+        let syncer = match &self.syncer {
+            Some(syncer) => syncer.clone(),
+            None => return,
+        };
+        tokio::spawn(async move {
+            syncer.sync_now(t).await.expect("sync once error");
+        });
+    }
+
+    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
     fn connect_socket(&mut self) {
         let mut slf = self.clone();
         let slf2 = self.clone();
@@ -297,8 +311,6 @@ impl FeatureProbe {
 
     #[cfg(all(feature = "use_tokio", feature = "realtime"))]
     fn socket_on_update(slf: Self, payload: Option<socketio_rs::Payload>) -> SocketCallback {
-        use crate::sync::SyncType;
-
         trace!("socket_on_update: {:?}", payload);
         async move {
             if let Some(syncer) = &slf.syncer {
