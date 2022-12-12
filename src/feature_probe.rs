@@ -446,7 +446,7 @@ mod tests {
 
 #[cfg(test)]
 mod server_sdk_contract_tests {
-    use crate::{FPDetail, FPError, FPUser, FeatureProbe, Repository};
+    use crate::{FPDetail, FPError, FPUser, FeatureProbe, Repository, SyncType};
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
     use std::fmt::Debug;
@@ -521,7 +521,7 @@ mod server_sdk_contract_tests {
             println!("scenario: {}", scenario.scenario);
             assert!(!scenario.cases.is_empty());
             let fp = FeatureProbe::new_with("secret key".to_string(), scenario.fixture);
-
+            fp.sync_now(SyncType::Polling);
             for case in scenario.cases {
                 println!("  case: {}", case.name);
 
