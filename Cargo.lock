@@ -141,6 +141,7 @@ dependencies = [
  "bitflags",
  "bytes",
  "futures-util",
+ "headers",
  "http",
  "http-body",
  "hyper",
@@ -152,7 +153,11 @@ dependencies = [
  "pin-project-lite",
  "rustversion",
  "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_urlencoded",
  "sync_wrapper",
+ "tokio",
  "tower",
  "tower-http 0.3.4",
  "tower-layer",
@@ -783,7 +788,7 @@ version = "1.2.8"
 dependencies = [
  "anyhow",
  "approx",
- "axum 0.5.17",
+ "axum 0.6.1",
  "axum-extra 0.4.1",
  "byteorder",
  "clap 4.0.29",
@@ -2047,6 +2052,15 @@ checksum = "6ce777b7b150d76b9cf60d28b55f5847135a003f7d7350c6be7a773508ce7d45"
 dependencies = [
  "itoa 1.0.4",
  "ryu",
+ "serde",
+]
+
+[[package]]
+name = "serde_path_to_error"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "184c643044780f7ceb59104cef98a5a6f12cb2288a7bc701ab93a362b49fd47d"
+dependencies = [
  "serde",
 ]
 
