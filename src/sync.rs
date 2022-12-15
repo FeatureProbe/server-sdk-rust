@@ -179,9 +179,15 @@ impl Synchronizer {
         None
     }
 
-    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
-    pub async fn sync_now(&self, t: SyncType) -> Result<(), FPError> {
-        self.inner.sync_now(t).await
+    pub fn sync_now(&self, t: SyncType) {
+        #[cfg(feature = "use_tokio")]
+        {
+            let slf = self.clone();
+            tokio::spawn(async move { slf.inner.sync_now(t).await });
+        }
+
+        #[cfg(feature = "use_std")]
+        let _ = self.inner.sync_now(t);
     }
 }
 
