@@ -6,9 +6,12 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tracing::trace;
-#[cfg(all(feature = "use_tokio", feature = "realtime"))]
+
 use crate::sync::SyncType;
-use crate::{config::Config, evaluate::{EvalDetail, Repository}};
+use crate::{
+    config::Config,
+    evaluate::{EvalDetail, Repository},
+};
 use crate::{sync::Synchronizer, FPConfig};
 use crate::{sync::UpdateCallback, user::FPUser};
 use crate::{FPDetail, SdkAuthorization, Toggle};
@@ -246,16 +249,13 @@ impl FeatureProbe {
         syncer.start_sync(self.config.start_wait, self.should_stop.clone());
     }
 
-    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
-    pub fn sync_once(&self , t: SyncType) {
+    pub fn sync_now(&self, t: SyncType) {
         trace!("sync now url {}", &self.config.toggles_url);
         let syncer = match &self.syncer {
             Some(syncer) => syncer.clone(),
             None => return,
         };
-        tokio::spawn(async move {
-            syncer.sync_now(t).await.expect("sync once error");
-        });
+        syncer.sync_now(t);
     }
 
     #[cfg(all(feature = "use_tokio", feature = "realtime"))]
@@ -307,11 +307,10 @@ impl FeatureProbe {
 
     #[cfg(all(feature = "use_tokio", feature = "realtime"))]
     fn socket_on_update(slf: Self, payload: Option<socketio_rs::Payload>) -> SocketCallback {
-
         trace!("socket_on_update: {:?}", payload);
         async move {
             if let Some(syncer) = &slf.syncer {
-                let _ = syncer.sync_now(SyncType::Realtime).await;
+                let _ = syncer.sync_now(SyncType::Realtime);
             } else {
                 tracing::warn!("socket receive update event, but no synchronizer");
             }

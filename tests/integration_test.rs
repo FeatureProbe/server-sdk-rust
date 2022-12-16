@@ -35,7 +35,8 @@ async fn integration_test() {
     };
 
     let mut fp = FeatureProbe::new(config);
-
+    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    fp.sync_now(SyncType::Polling);
     let did_update = {
         let did_update = Arc::new(Mutex::new((false, false)));
         let did_update_clone = did_update.clone();
