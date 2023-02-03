@@ -63,7 +63,7 @@ futures-util = { optional = true, version = "0.3", default-features = false, fea
 
 [dev-dependencies]
 approx = "0.5"
-axum = { version = "0.5", features = ["headers"] }
+axum = { version = "0.6", features = ["headers"] }
 axum-extra = { version = "0.4", features = ["typed-routing"] }
 clap = { version = "4.0.29", features = ["derive"] }
 criterion = "0.4"
