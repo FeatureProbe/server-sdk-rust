@@ -109,7 +109,7 @@ impl Distribution {
 fn salt_hash(key: &str, salt: &str, bucket_size: u64) -> u32 {
     let size = 4;
     let mut hasher = sha1::Sha1::new();
-    let data = format!("{}{}", key, salt);
+    let data = format!("{key}{salt}");
     hasher.update(data);
     let hax_value = hasher.finalize();
     let mut v = Vec::with_capacity(size);
@@ -211,7 +211,7 @@ impl Toggle {
                             variation_index: Some(v.index),
                             rule_index: Some(i),
                             version: Some(self.version),
-                            reason: format!("rule {}", i),
+                            reason: format!("rule {i}"),
                         };
                     }
                 }
@@ -220,7 +220,7 @@ impl Toggle {
                     return EvalDetail {
                         rule_index: Some(i),
                         version: Some(self.version),
-                        reason: format!("{:?}", e),
+                        reason: format!("{e:?}"),
                         ..Default::default()
                     };
                 }
@@ -237,7 +237,7 @@ impl Toggle {
             },
             Err(e) => EvalDetail {
                 version: Some(self.version),
-                reason: format!("{:?}", e),
+                reason: format!("{e:?}"),
                 ..Default::default()
             },
         }
@@ -483,6 +483,7 @@ impl Segment {
 pub struct Repository {
     pub segments: HashMap<String, Segment>,
     pub toggles: HashMap<String, Toggle>,
+    pub events: Option<Value>,
     // TODO: remove option next release
     pub version: Option<u128>,
 }
@@ -492,6 +493,7 @@ impl Default for Repository {
         Repository {
             segments: Default::default(),
             toggles: Default::default(),
+            events: Default::default(),
             version: Some(0),
         }
     }
