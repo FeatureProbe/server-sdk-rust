@@ -483,6 +483,7 @@ impl Segment {
 pub struct Repository {
     pub segments: HashMap<String, Segment>,
     pub toggles: HashMap<String, Toggle>,
+    pub events: Option<Value>,
     // TODO: remove option next release
     pub version: Option<u128>,
 }
@@ -492,6 +493,7 @@ impl Default for Repository {
         Repository {
             segments: Default::default(),
             toggles: Default::default(),
+            events: Default::default(),
             version: Some(0),
         }
     }
