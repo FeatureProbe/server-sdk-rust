@@ -145,6 +145,8 @@ pub struct EvalDetail<T> {
 pub struct Toggle {
     key: String,
     enabled: bool,
+    track_access_events: Option<bool>,
+    last_modified: Option<u64>,
     version: u64,
     for_client: bool,
     disabled_serve: Serve,
@@ -265,6 +267,8 @@ impl Toggle {
         Self {
             key,
             enabled: true,
+            track_access_events: None,
+            last_modified: None,
             default_serve: Serve::Select(0),
             disabled_serve: Serve::Select(0),
             variations: vec![val],
