@@ -171,7 +171,7 @@ impl FeatureProbe {
         let (value, reason, detail) = match self.eval_detail(toggle, user) {
             None => (
                 default,
-                Some(format!("Toggle:[{}] not exist", toggle)),
+                Some(format!("Toggle:[{toggle}] not exist")),
                 Default::default(),
             ),
             Some(mut d) => match d.value.take() {
