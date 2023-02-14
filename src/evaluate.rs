@@ -135,6 +135,8 @@ pub struct EvalParams<'a> {
 pub struct EvalDetail<T> {
     pub value: Option<T>,
     pub rule_index: Option<usize>,
+    pub track_access_events: Option<bool>,
+    pub last_modified: Option<u64>,
     pub variation_index: Option<usize>,
     pub version: Option<u64>,
     pub reason: String,
@@ -200,6 +202,8 @@ impl Toggle {
                 variation_index: v.as_ref().map(|v| v.index),
                 value: v.map(|v| v.value),
                 version: Some(self.version),
+                track_access_events: self.track_access_events,
+                last_modified: self.last_modified,
                 reason: "disabled".to_owned(),
                 ..Default::default()
             };
@@ -212,6 +216,8 @@ impl Toggle {
                             value: Some(v.value),
                             variation_index: Some(v.index),
                             rule_index: Some(i),
+                            track_access_events: self.track_access_events,
+                            last_modified: self.last_modified,
                             version: Some(self.version),
                             reason: format!("rule {i}"),
                         };
