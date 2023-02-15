@@ -229,6 +229,8 @@ impl Toggle {
                         rule_index: Some(i),
                         version: Some(self.version),
                         reason: format!("{e:?}"),
+                        track_access_events: self.track_access_events,
+                        last_modified: self.last_modified,
                         ..Default::default()
                     };
                 }
@@ -240,10 +242,14 @@ impl Toggle {
                 value: Some(v.value),
                 variation_index: Some(v.index),
                 version: Some(self.version),
+                track_access_events: self.track_access_events,
+                last_modified: self.last_modified,
                 reason: "default.".to_owned(),
                 ..Default::default()
             },
             Err(e) => EvalDetail {
+                track_access_events: self.track_access_events,
+                last_modified: self.last_modified,
                 version: Some(self.version),
                 reason: format!("{e:?}"),
                 ..Default::default()
