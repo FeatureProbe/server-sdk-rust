@@ -6,26 +6,15 @@ use crate::{
 use crate::{sync::Synchronizer, FPConfig};
 use crate::{sync::UpdateCallback, user::FPUser};
 use crate::{FPDetail, SdkAuthorization, Toggle};
+use event::event::AccessEvent;
+use event::event::CustomEvent;
+use event::event::Event;
+use event::recorder::unix_timestamp;
+use event::recorder::EventRecorder;
 #[cfg(feature = "event")]
-use feature_probe_event_std::event::AccessEvent;
-#[cfg(feature = "event")]
-use feature_probe_event_std::event::CustomEvent;
-#[cfg(feature = "event")]
-use feature_probe_event_std::event::Event;
-#[cfg(feature = "event")]
-use feature_probe_event_std::recorder::unix_timestamp;
-#[cfg(feature = "event")]
-use feature_probe_event_std::recorder::EventRecorder;
+use feature_probe_event_std as event;
 #[cfg(feature = "event_tokio")]
-use feature_probe_event_tokio::event::AccessEvent;
-#[cfg(feature = "event_tokio")]
-use feature_probe_event_tokio::event::CustomEvent;
-#[cfg(feature = "event_tokio")]
-use feature_probe_event_tokio::event::Event;
-#[cfg(feature = "event_tokio")]
-use feature_probe_event_tokio::recorder::unix_timestamp;
-#[cfg(feature = "event_tokio")]
-use feature_probe_event_tokio::recorder::EventRecorder;
+use feature_probe_event_tokio as event;
 #[cfg(all(feature = "use_tokio", feature = "realtime"))]
 use futures_util::FutureExt;
 use parking_lot::RwLock;
@@ -36,6 +25,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tracing::{trace, warn};
+
 #[cfg(all(feature = "use_tokio", feature = "realtime"))]
 type SocketCallback = std::pin::Pin<Box<dyn futures_util::Future<Output = ()> + Send>>;
 
