@@ -184,6 +184,10 @@ impl Toggle {
         self.default_serve.select_variation_value(&eval_param)
     }
 
+    pub fn track_access_events(&self) -> bool {
+        self.track_access_events.unwrap_or(false)
+    }
+
     pub fn eval_detail(
         &self,
         user: &FPUser,

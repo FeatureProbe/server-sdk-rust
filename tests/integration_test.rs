@@ -89,6 +89,7 @@ async fn setup_server(api_port: u16, server_port: u16, realtime_port: u16, realt
     let events_url: Url = format!("http://0.0.0.0:{}/api/events", api_port)
         .parse()
         .unwrap();
+    let analysis_url = None;
     let refresh_interval = Duration::from_secs(1);
     let config = ServerConfig {
         toggles_url,
@@ -97,6 +98,7 @@ async fn setup_server(api_port: u16, server_port: u16, realtime_port: u16, realt
         realtime_path,
         refresh_interval,
         keys_url: None,
+        analysis_url: None,
         events_url: events_url.clone(),
         client_sdk_key: Some(client_sdk_key.clone()),
         server_sdk_key: Some(server_sdk_key.clone()),
@@ -108,6 +110,7 @@ async fn setup_server(api_port: u16, server_port: u16, realtime_port: u16, realt
     let feature_probe_server = FpHttpHandler {
         repo: repo.clone(),
         events_url,
+        analysis_url,
         events_timeout: Duration::from_secs(1),
         http_client: Default::default(),
     };
