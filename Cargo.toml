@@ -35,7 +35,7 @@ lazy_static = "1.4"
 minstant = "0.1"
 parking_lot = { version = "0.12", features = ["serde"] }
 rand = "0.8"
-regex = "1.5.6"
+regex = "1.7.1"
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
