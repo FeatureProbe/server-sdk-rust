@@ -1,12 +1,3 @@
-use parking_lot::RwLock;
-use serde_json::Value;
-#[cfg(all(feature = "use_tokio", feature = "realtime"))]
-use socketio_rs::Client;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::sync::Arc;
-use tracing::trace;
-
 use crate::sync::SyncType;
 use crate::{
     config::Config,
@@ -15,20 +6,25 @@ use crate::{
 use crate::{sync::Synchronizer, FPConfig};
 use crate::{sync::UpdateCallback, user::FPUser};
 use crate::{FPDetail, SdkAuthorization, Toggle};
+use event::event::AccessEvent;
+use event::event::CustomEvent;
+use event::event::Event;
+use event::recorder::unix_timestamp;
+use event::recorder::EventRecorder;
 #[cfg(feature = "event")]
-use feature_probe_event_std::event::AccessEvent;
-#[cfg(feature = "event")]
-use feature_probe_event_std::recorder::unix_timestamp;
-#[cfg(feature = "event")]
-use feature_probe_event_std::recorder::EventRecorder;
+use feature_probe_event_std as event;
 #[cfg(feature = "event_tokio")]
-use feature_probe_event_tokio::event::AccessEvent;
-#[cfg(feature = "event_tokio")]
-use feature_probe_event_tokio::recorder::unix_timestamp;
-#[cfg(feature = "event_tokio")]
-use feature_probe_event_tokio::recorder::EventRecorder;
+use feature_probe_event_tokio as event;
 #[cfg(all(feature = "use_tokio", feature = "realtime"))]
 use futures_util::FutureExt;
+use parking_lot::RwLock;
+use serde_json::Value;
+#[cfg(all(feature = "use_tokio", feature = "realtime"))]
+use socketio_rs::Client;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::sync::Arc;
+use tracing::{trace, warn};
 
 #[cfg(all(feature = "use_tokio", feature = "realtime"))]
 type SocketCallback = std::pin::Pin<Box<dyn futures_util::Future<Output = ()> + Send>>;
@@ -122,6 +118,24 @@ impl FeatureProbe {
         self.generic_detail(toggle, user, default, Some)
     }
 
+    pub fn track(&self, event_name: &str, user: &FPUser, value: Option<f64>) {
+        let recorder = match self.event_recorder.as_ref() {
+            None => {
+                warn!("Event Recorder no ready.");
+                return;
+            }
+            Some(recorder) => recorder,
+        };
+        let event = CustomEvent {
+            kind: "custom".to_string(),
+            time: unix_timestamp(),
+            user: user.key(),
+            name: event_name.to_string(),
+            value,
+        };
+        recorder.record_event(Event::CustomEvent(event));
+    }
+
     pub fn new_with(server_key: String, repo: Repository) -> Self {
         Self {
             config: Config {
@@ -198,26 +212,39 @@ impl FeatureProbe {
             .toggles
             .get(toggle)
             .map(|toggle| toggle.eval_detail(user, &repo.segments));
-
+        let track_access_events = match repo.toggles.get(toggle) {
+            Some(toggle) => toggle.track_access_events(),
+            None => false,
+        };
         #[cfg(any(feature = "event", feature = "event_tokio"))]
-        self.record_detail(toggle, &detail);
-
+        self.record_detail(toggle, user, track_access_events, &detail);
         detail
     }
 
     #[cfg(any(feature = "event", feature = "event_tokio"))]
-    fn record_detail(&self, toggle: &str, detail: &Option<EvalDetail<Value>>) -> Option<()> {
+    fn record_detail(
+        &self,
+        toggle: &str,
+        user: &FPUser,
+        track_access_events: bool,
+        detail: &Option<EvalDetail<Value>>,
+    ) -> Option<()> {
         let recorder = self.event_recorder.as_ref()?;
         let detail = detail.as_ref()?;
         let value = detail.value.as_ref()?;
-        recorder.record_access(AccessEvent {
+        let event = AccessEvent {
+            kind: "access".to_string(),
             time: unix_timestamp(),
             key: toggle.to_owned(),
+            user: user.key(),
             value: value.clone(),
-            index: detail.variation_index,
+            variation_index: detail.variation_index.unwrap(),
             version: detail.version,
-            reason: detail.reason.clone(),
-        });
+            rule_index: detail.rule_index,
+            reason: Some(detail.reason.to_string()),
+            track_access_events,
+        };
+        recorder.record_event(Event::AccessEvent(event));
         None
     }
 
