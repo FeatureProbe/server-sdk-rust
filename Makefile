@@ -12,6 +12,5 @@ release-test:
 	cargo test --release --verbose --features async --no-default-features
 test:
 	cargo test --verbose && \
-	cargo test --verbose --features use_tokio --features internal --features event_tokio --no-default-features && \
-	cargo test --verbose --features use_tokio --features internal --features event_tokio --features realtime --no-default-features
+	cargo test --verbose --features internal --features realtime --no-default-features
 

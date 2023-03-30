@@ -11,33 +11,29 @@ use event::event::CustomEvent;
 use event::event::Event;
 use event::recorder::unix_timestamp;
 use event::recorder::EventRecorder;
-#[cfg(feature = "event")]
-use feature_probe_event_std as event;
-#[cfg(feature = "event_tokio")]
-use feature_probe_event_tokio as event;
-#[cfg(all(feature = "use_tokio", feature = "realtime"))]
+use feature_probe_event as event;
+#[cfg(feature = "realtime")]
 use futures_util::FutureExt;
 use parking_lot::RwLock;
 use serde_json::Value;
-#[cfg(all(feature = "use_tokio", feature = "realtime"))]
+#[cfg(feature = "realtime")]
 use socketio_rs::Client;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tracing::{trace, warn};
 
-#[cfg(all(feature = "use_tokio", feature = "realtime"))]
+#[cfg(feature = "realtime")]
 type SocketCallback = std::pin::Pin<Box<dyn futures_util::Future<Output = ()> + Send>>;
 
 #[derive(Default, Clone)]
 pub struct FeatureProbe {
     repo: Arc<RwLock<Repository>>,
     syncer: Option<Synchronizer>,
-    #[cfg(any(feature = "event", feature = "event_tokio"))]
     event_recorder: Option<EventRecorder>,
     config: Config,
     should_stop: Arc<RwLock<bool>>,
-    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    #[cfg(feature = "realtime")]
     socket: Option<Client>,
 }
 
@@ -148,17 +144,15 @@ impl FeatureProbe {
             },
             repo: Arc::new(RwLock::new(repo)),
             syncer: None,
-            #[cfg(any(feature = "event", feature = "event_tokio"))]
             event_recorder: None,
             should_stop: Arc::new(RwLock::new(false)),
-            #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+            #[cfg(feature = "realtime")]
             socket: None,
         }
     }
 
     pub fn close(&self) {
         trace!("closing featureprobe client");
-        #[cfg(any(feature = "event", feature = "event_tokio"))]
         if let Some(recorder) = &self.event_recorder {
             recorder.flush();
         }
@@ -226,12 +220,10 @@ impl FeatureProbe {
             Some(toggle) => toggle.track_access_events(),
             None => false,
         };
-        #[cfg(any(feature = "event", feature = "event_tokio"))]
         self.record_detail(toggle, user, track_access_events, &detail);
         detail
     }
 
-    #[cfg(any(feature = "event", feature = "event_tokio"))]
     fn record_detail(
         &self,
         toggle: &str,
@@ -261,10 +253,9 @@ impl FeatureProbe {
     fn start(&mut self) {
         self.sync();
 
-        #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+        #[cfg(feature = "realtime")]
         self.connect_socket();
 
-        #[cfg(any(feature = "event", feature = "event_tokio"))]
         self.flush_events();
     }
 
@@ -278,7 +269,6 @@ impl FeatureProbe {
             toggles_url,
             refresh_interval,
             auth,
-            #[cfg(feature = "use_tokio")]
             self.config.http_client.clone().unwrap_or_default(),
             repo,
         );
@@ -295,7 +285,7 @@ impl FeatureProbe {
         syncer.sync_now(t);
     }
 
-    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    #[cfg(feature = "realtime")]
     fn connect_socket(&mut self) {
         let mut slf = self.clone();
         let slf2 = self.clone();
@@ -327,7 +317,7 @@ impl FeatureProbe {
         });
     }
 
-    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    #[cfg(feature = "realtime")]
     fn socket_on_connect(socket: socketio_rs::Socket, server_sdk_key: String) -> SocketCallback {
         let sdk_key = server_sdk_key;
         trace!("socket_on_connect: {:?}", sdk_key);
@@ -342,12 +332,12 @@ impl FeatureProbe {
         .boxed()
     }
 
-    #[cfg(all(feature = "use_tokio", feature = "realtime"))]
+    #[cfg(feature = "realtime")]
     fn socket_on_update(slf: Self, payload: Option<socketio_rs::Payload>) -> SocketCallback {
         trace!("socket_on_update: {:?}", payload);
         async move {
             if let Some(syncer) = &slf.syncer {
-                let _ = syncer.sync_now(SyncType::Realtime);
+                syncer.sync_now(SyncType::Realtime);
             } else {
                 warn!("socket receive update event, but no synchronizer");
             }
@@ -355,7 +345,6 @@ impl FeatureProbe {
         .boxed()
     }
 
-    #[cfg(any(feature = "event", feature = "event_tokio"))]
     fn flush_events(&mut self) {
         trace!("flush_events");
         let events_url = self.config.events_url.clone();
