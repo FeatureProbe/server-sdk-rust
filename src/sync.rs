@@ -358,7 +358,7 @@ mod tests {
         let is_timeout_fn: Option<Box<dyn Fn() -> bool + Send>> = Some(Box::new(|| false));
         let is_send = true;
         let r = Synchronizer::should_send(
-            Err(FPError::InternalError("unkown".to_owned())),
+            Err(FPError::InternalError("unknown".to_owned())),
             &is_timeout_fn,
             is_send,
         );
@@ -366,7 +366,7 @@ mod tests {
 
         let is_timeout_fn: Option<Box<dyn Fn() -> bool + Send>> = Some(Box::new(|| true));
         let r = Synchronizer::should_send(
-            Err(FPError::InternalError("unkown".to_owned())),
+            Err(FPError::InternalError("unknown".to_owned())),
             &is_timeout_fn,
             is_send,
         );
@@ -375,7 +375,7 @@ mod tests {
         let is_send = false;
         let is_timeout_fn: Option<Box<dyn Fn() -> bool + Send>> = Some(Box::new(|| true));
         let r = Synchronizer::should_send(
-            Err(FPError::InternalError("unkown".to_owned())),
+            Err(FPError::InternalError("unknown".to_owned())),
             &is_timeout_fn,
             is_send,
         );

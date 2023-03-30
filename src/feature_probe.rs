@@ -84,38 +84,42 @@ impl FeatureProbe {
     }
 
     pub fn bool_value(&self, toggle: &str, user: &FPUser, default: bool) -> bool {
-        self.generic_detail(toggle, user, default, |v| v.as_bool())
+        self.generic_eval(toggle, user, default, false, |v| v.as_bool())
             .value
     }
 
     pub fn string_value(&self, toggle: &str, user: &FPUser, default: String) -> String {
-        self.generic_detail(toggle, user, default, |v| v.as_str().map(|s| s.to_owned()))
-            .value
+        self.generic_eval(toggle, user, default, false, |v| {
+            v.as_str().map(|s| s.to_owned())
+        })
+        .value
     }
 
     pub fn number_value(&self, toggle: &str, user: &FPUser, default: f64) -> f64 {
-        self.generic_detail(toggle, user, default, |v| v.as_f64())
+        self.generic_eval(toggle, user, default, false, |v| v.as_f64())
             .value
     }
 
     pub fn json_value(&self, toggle: &str, user: &FPUser, default: Value) -> Value {
-        self.generic_detail(toggle, user, default, Some).value
+        self.generic_eval(toggle, user, default, false, Some).value
     }
 
     pub fn bool_detail(&self, toggle: &str, user: &FPUser, default: bool) -> FPDetail<bool> {
-        self.generic_detail(toggle, user, default, |v| v.as_bool())
+        self.generic_eval(toggle, user, default, true, |v| v.as_bool())
     }
 
     pub fn string_detail(&self, toggle: &str, user: &FPUser, default: String) -> FPDetail<String> {
-        self.generic_detail(toggle, user, default, |v| v.as_str().map(|x| x.to_owned()))
+        self.generic_eval(toggle, user, default, true, |v| {
+            v.as_str().map(|x| x.to_owned())
+        })
     }
 
     pub fn number_detail(&self, toggle: &str, user: &FPUser, default: f64) -> FPDetail<f64> {
-        self.generic_detail(toggle, user, default, |v| v.as_f64())
+        self.generic_eval(toggle, user, default, true, |v| v.as_f64())
     }
 
     pub fn json_detail(&self, toggle: &str, user: &FPUser, default: Value) -> FPDetail<Value> {
-        self.generic_detail(toggle, user, default, Some)
+        self.generic_eval(toggle, user, default, true, Some)
     }
 
     pub fn track(&self, event_name: &str, user: &FPUser, value: Option<f64>) {
@@ -175,14 +179,15 @@ impl FeatureProbe {
         }
     }
 
-    fn generic_detail<T: Default + Debug>(
+    fn generic_eval<T: Default + Debug>(
         &self,
         toggle: &str,
         user: &FPUser,
         default: T,
+        is_detail: bool,
         transform: fn(Value) -> Option<T>,
     ) -> FPDetail<T> {
-        let (value, reason, detail) = match self.eval_detail(toggle, user) {
+        let (value, reason, detail) = match self.eval(toggle, user, is_detail) {
             None => (
                 default,
                 Some(format!("Toggle:[{toggle}] not exist")),
@@ -206,12 +211,17 @@ impl FeatureProbe {
         }
     }
 
-    fn eval_detail(&self, toggle: &str, user: &FPUser) -> Option<EvalDetail<Value>> {
+    fn eval(&self, toggle: &str, user: &FPUser, is_detail: bool) -> Option<EvalDetail<Value>> {
         let repo = self.repo.read();
-        let detail = repo
-            .toggles
-            .get(toggle)
-            .map(|toggle| toggle.eval_detail(user, &repo.segments));
+        let detail = repo.toggles.get(toggle).map(|toggle| {
+            toggle.eval(
+                user,
+                &repo.segments,
+                &repo.toggles,
+                is_detail,
+                self.config.max_prerequisites_deep,
+            )
+        });
         let track_access_events = match repo.toggles.get(toggle) {
             Some(toggle) => toggle.track_access_events(),
             None => false,
@@ -293,7 +303,7 @@ impl FeatureProbe {
         tokio::spawn(async move {
             let url = slf.config.realtime_url;
             let server_sdk_key = slf.config.server_sdk_key.clone();
-            tracing::trace!("connect_socket {}", url);
+            trace!("connect_socket {}", url);
             let client = socketio_rs::ClientBuilder::new(url.clone())
                 .namespace(&nsp)
                 .on(socketio_rs::Event::Connect, move |_, socket, _| {
@@ -339,7 +349,7 @@ impl FeatureProbe {
             if let Some(syncer) = &slf.syncer {
                 let _ = syncer.sync_now(SyncType::Realtime);
             } else {
-                tracing::warn!("socket receive update event, but no synchronizer");
+                warn!("socket receive update event, but no synchronizer");
             }
         }
         .boxed()
@@ -543,6 +553,7 @@ mod server_sdk_contract_tests {
         for scenario in root.unwrap().tests {
             println!("scenario: {}", scenario.scenario);
             assert!(!scenario.cases.is_empty());
+
             let fp = FeatureProbe::new_with("secret key".to_string(), scenario.fixture);
 
             for case in scenario.cases {
@@ -631,7 +642,7 @@ mod server_sdk_contract_tests {
         }
     }
 
-    fn assert_detail<T: std::default::Default + Debug>(case: &Case, ret: FPDetail<T>) {
+    fn assert_detail<T: Default + Debug>(case: &Case, ret: FPDetail<T>) {
         match &case.expect_result.reason {
             None => (),
             Some(r) => {

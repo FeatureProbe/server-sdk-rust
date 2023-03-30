@@ -36,6 +36,7 @@ pub(crate) struct Config {
     pub realtime_url: Url,
     #[cfg(all(feature = "use_tokio", feature = "realtime"))]
     pub realtime_path: String,
+    pub max_prerequisites_deep: u8,
 }
 
 impl Default for FPConfig {
@@ -74,6 +75,7 @@ impl Default for Config {
             realtime_url: Url::parse("https://featureprobe.io/server/realtime").unwrap(),
             #[cfg(all(feature = "use_tokio", feature = "realtime"))]
             realtime_path: "/server/realtime".to_owned(),
+            max_prerequisites_deep: 20,
         }
     }
 }
@@ -122,6 +124,7 @@ impl FPConfig {
             realtime_url,
             #[cfg(all(feature = "use_tokio", feature = "realtime"))]
             realtime_path,
+            ..Default::default()
         }
     }
 }

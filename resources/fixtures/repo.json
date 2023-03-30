@@ -372,6 +372,152 @@
           "not_in": true
         }
       ]
+    },
+    "prerequisite_toggle": {
+      "key": "prerequisite_toggle",
+      "enabled": true,
+      "forClient": false,
+      "version": 1,
+      "disabledServe": {
+        "select": 0
+      },
+      "defaultServe": {
+        "select": 1
+      },
+      "rules": [
+        {
+          "serve": {
+            "select": 2
+          },
+          "conditions": [
+            {
+              "type": "segment",
+              "subject": "user",
+              "predicate": "is in",
+              "objects": [
+                "some_segment1-fjoaefjaam"
+              ]
+            }
+          ]
+        }
+      ],
+      "prerequisites": [
+        {
+          "key": "bool_toggle",
+          "value": false
+        },
+        {
+          "key": "string_toggle",
+          "value": "2"
+        },
+        {
+          "key": "number_toggle",
+          "value": 2
+        }
+      ],
+      "variations": [
+        {
+          "0": "0"
+        },
+        {
+          "1": "1"
+        },
+        {
+          "2": "2"
+        }
+      ]
+    },
+    "prerequisite_toggle_not_exist": {
+      "key": "prerequisite_toggle_not_exist",
+      "enabled": true,
+      "forClient": false,
+      "version": 1,
+      "disabledServe": {
+        "select": 0
+      },
+      "defaultServe": {
+        "select": 1
+      },
+      "rules": [
+        {
+          "serve": {
+            "select": 2
+          },
+          "conditions": [
+            {
+              "type": "segment",
+              "subject": "user",
+              "predicate": "is in",
+              "objects": [
+                "some_segment1-fjoaefjaam"
+              ]
+            }
+          ]
+        }
+      ],
+      "prerequisites": [
+        {
+          "key": "bool_toggle_not_exist",
+          "value": true
+        }
+      ],
+      "variations": [
+        {
+          "0": "0"
+        },
+        {
+          "1": "1"
+        },
+        {
+          "2": "2"
+        }
+      ]
+    },
+    "prerequisite_toggle_not_match": {
+      "key": "prerequisite_toggle_not_match",
+      "enabled": true,
+      "forClient": false,
+      "version": 1,
+      "disabledServe": {
+        "select": 0
+      },
+      "defaultServe": {
+        "select": 1
+      },
+      "rules": [
+        {
+          "serve": {
+            "select": 2
+          },
+          "conditions": [
+            {
+              "type": "segment",
+              "subject": "user",
+              "predicate": "is in",
+              "objects": [
+                "some_segment1-fjoaefjaam"
+              ]
+            }
+          ]
+        }
+      ],
+      "prerequisites": [
+        {
+          "key": "bool_toggle",
+          "value": true
+        }
+      ],
+      "variations": [
+        {
+          "0": "0"
+        },
+        {
+          "1": "1"
+        },
+        {
+          "2": "2"
+        }
+      ]
     }
   }
 }
