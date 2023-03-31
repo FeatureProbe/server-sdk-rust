@@ -29,6 +29,8 @@ jobs:
     steps:
       - name: checkout repository
         uses: actions/checkout@v2
+        with:
+          submodules: recursive
 
       - name: generate code coverage
         run: |

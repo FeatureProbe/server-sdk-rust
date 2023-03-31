@@ -1,6 +1,6 @@
-use crate::unix_timestamp;
 use crate::user::FPUser;
 use crate::FPError;
+use crate::{unix_timestamp, PrerequisiteError};
 use byteorder::{BigEndian, ReadBytesExt};
 use regex::Regex;
 use semver::Version;
@@ -44,11 +44,6 @@ impl Serve {
                 index,
             }),
         }
-    }
-
-    pub fn select_variation_value(&self, eval_param: &EvalParams) -> Result<Value, FPError> {
-        let v = self.select_variation(eval_param)?;
-        Ok(v.value)
     }
 }
 
@@ -128,6 +123,7 @@ pub struct EvalParams<'a> {
     user: &'a FPUser,
     variations: &'a [Value],
     segment_repo: &'a HashMap<String, Segment>,
+    toggle_repo: &'a HashMap<String, Toggle>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
@@ -144,6 +140,13 @@ pub struct EvalDetail<T> {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct Prerequisites {
+    pub key: String,
+    pub value: Value,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Toggle {
     key: String,
     enabled: bool,
@@ -155,6 +158,7 @@ pub struct Toggle {
     default_serve: Serve,
     rules: Vec<Rule>,
     variations: Vec<Value>,
+    prerequisites: Option<Vec<Prerequisites>>,
 }
 
 impl Toggle {
@@ -162,103 +166,123 @@ impl Toggle {
         &self,
         user: &FPUser,
         segment_repo: &HashMap<String, Segment>,
-    ) -> Result<Value, FPError> {
-        let eval_param = EvalParams {
-            user,
-            segment_repo,
-            key: &self.key,
-            is_detail: false,
-            variations: &self.variations,
-        };
-
-        if !self.enabled {
-            return self.disabled_serve.select_variation_value(&eval_param);
-        }
-
-        for rule in &self.rules {
-            if let Some(v) = rule.serve_variation(&eval_param)? {
-                return Ok(v.value);
-            }
-        }
-
-        self.default_serve.select_variation_value(&eval_param)
-    }
-
-    pub fn track_access_events(&self) -> bool {
-        self.track_access_events.unwrap_or(false)
-    }
-
-    pub fn eval_detail(
-        &self,
-        user: &FPUser,
-        segment_repo: &HashMap<String, Segment>,
+        toggle_repo: &HashMap<String, Toggle>,
+        is_detail: bool,
+        deep: u8,
     ) -> EvalDetail<Value> {
         let eval_param = EvalParams {
             user,
             segment_repo,
+            toggle_repo,
             key: &self.key,
-            is_detail: true,
+            is_detail,
             variations: &self.variations,
         };
-        if !self.enabled {
-            let v = self.disabled_serve.select_variation(&eval_param).ok();
-            return EvalDetail {
-                variation_index: v.as_ref().map(|v| v.index),
-                value: v.map(|v| v.value),
-                version: Some(self.version),
-                track_access_events: self.track_access_events,
-                last_modified: self.last_modified,
-                reason: "disabled".to_owned(),
-                ..Default::default()
-            };
+
+        match self.do_eval(&eval_param, deep) {
+            Ok(eval) => eval,
+            Err(e) => self.default_variation(&eval_param, Some(e.to_string())),
         }
+    }
+
+    fn do_eval(
+        &self,
+        eval_param: &EvalParams,
+        max_deep: u8,
+    ) -> Result<EvalDetail<Value>, PrerequisiteError> {
+        if !self.enabled {
+            let v = self.disabled_serve.select_variation(eval_param).ok();
+            return Ok(self.serve_variation(v, "disabled".to_owned(), None));
+        }
+
+        self.check_prerequisites(eval_param, max_deep)?;
+
         for (i, rule) in self.rules.iter().enumerate() {
-            match rule.serve_variation(&eval_param) {
-                Ok(opt_value) => {
-                    if let Some(v) = opt_value {
-                        return EvalDetail {
-                            value: Some(v.value),
-                            variation_index: Some(v.index),
-                            rule_index: Some(i),
-                            track_access_events: self.track_access_events,
-                            last_modified: self.last_modified,
-                            version: Some(self.version),
-                            reason: format!("rule {i}"),
-                        };
+            match rule.serve_variation(eval_param) {
+                Ok(v) => {
+                    if v.is_some() {
+                        return Ok(self.serve_variation(v, format!("rule {i}"), Some(i)));
                     }
                 }
-
                 Err(e) => {
-                    return EvalDetail {
-                        rule_index: Some(i),
-                        version: Some(self.version),
-                        reason: format!("{e:?}"),
-                        track_access_events: self.track_access_events,
-                        last_modified: self.last_modified,
-                        ..Default::default()
-                    };
+                    return Ok(self.serve_variation(None, format!("{e:?}"), Some(i)));
                 }
             }
         }
 
-        match self.default_serve.select_variation(&eval_param) {
-            Ok(v) => EvalDetail {
-                value: Some(v.value),
-                variation_index: Some(v.index),
-                version: Some(self.version),
-                track_access_events: self.track_access_events,
-                last_modified: self.last_modified,
-                reason: "default.".to_owned(),
-                ..Default::default()
-            },
-            Err(e) => EvalDetail {
-                track_access_events: self.track_access_events,
-                last_modified: self.last_modified,
-                version: Some(self.version),
-                reason: format!("{e:?}"),
-                ..Default::default()
-            },
+        Ok(self.default_variation(eval_param, None))
+    }
+
+    fn check_prerequisites(
+        &self,
+        eval_param: &EvalParams,
+        deep: u8,
+    ) -> Result<(), PrerequisiteError> {
+        if deep == 0 {
+            return Err(PrerequisiteError::DeepOverflow);
         }
+
+        if let Some(ref prerequisites) = self.prerequisites {
+            for pre in prerequisites {
+                let eval = match eval_param.toggle_repo.get(&pre.key) {
+                    None => {
+                        return Err(PrerequisiteError::NotExist(pre.key.to_string()));
+                    }
+                    Some(t) => t.do_eval(
+                        &EvalParams {
+                            key: &t.key,
+                            variations: &t.variations,
+                            is_detail: eval_param.is_detail,
+                            user: eval_param.user,
+                            segment_repo: eval_param.segment_repo,
+                            toggle_repo: eval_param.toggle_repo,
+                        },
+                        deep - 1,
+                    )?,
+                };
+
+                match eval.value {
+                    Some(v) if v == pre.value => continue,
+                    _ => return Err(PrerequisiteError::NotMatch(pre.key.to_string())),
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn serve_variation(
+        &self,
+        v: Option<Variation>,
+        reason: String,
+        rule_index: Option<usize>,
+    ) -> EvalDetail<Value> {
+        EvalDetail {
+            variation_index: v.as_ref().map(|v| v.index),
+            value: v.map(|v| v.value),
+            version: Some(self.version),
+            track_access_events: self.track_access_events,
+            last_modified: self.last_modified,
+            rule_index,
+            reason,
+        }
+    }
+
+    fn default_variation(
+        &self,
+        eval_param: &EvalParams,
+        reason: Option<String>,
+    ) -> EvalDetail<Value> {
+        match self.default_serve.select_variation(eval_param) {
+            Ok(v) => {
+                self.serve_variation(Some(v), concat_reason("default".to_owned(), reason), None)
+            }
+            Err(e) => self.serve_variation(None, concat_reason(format!("{e:?}"), reason), None),
+        }
+    }
+
+    pub fn track_access_events(&self) -> bool {
+        self.track_access_events.unwrap_or(false)
     }
 
     #[cfg(feature = "internal")]
@@ -291,6 +315,7 @@ impl Toggle {
             version: 0,
             for_client: false,
             rules: vec![],
+            prerequisites: None,
         }
     }
 }
@@ -539,12 +564,21 @@ pub fn load_json(json_str: &str) -> Result<Repository, FPError> {
     repo
 }
 
+fn concat_reason(reason1: String, reason2: Option<String>) -> String {
+    if let Some(reason2) = reason2 {
+        return format!("{reason1}. {reason2}.");
+    }
+    format!("{reason1}.")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use approx::{self, assert_relative_eq};
     use std::fs;
     use std::path::PathBuf;
+
+    const MAX_DEEP: u8 = 20;
 
     #[test]
     fn test_load() {
@@ -579,8 +613,8 @@ mod tests {
 
         let user = FPUser::new().with("city", "4");
         let toggle = repo.toggles.get("json_toggle").unwrap();
-        let r = toggle.eval(&user, &repo.segments);
-        let r = r.unwrap();
+        let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, MAX_DEEP);
+        let r = r.value.unwrap();
         let r = r.as_object().unwrap();
         assert!(r.get("variation_1").is_some());
     }
@@ -596,8 +630,8 @@ mod tests {
 
         let user = FPUser::new().with("city", "100");
         let toggle = repo.toggles.get("not_in_segment").unwrap();
-        let r = toggle.eval(&user, &repo.segments);
-        let r = r.unwrap();
+        let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, MAX_DEEP);
+        let r = r.value.unwrap();
         let r = r.as_object().unwrap();
         assert!(r.get("not_in").is_some());
     }
@@ -613,19 +647,19 @@ mod tests {
 
         let user = FPUser::new().with("city", "1").with("os", "linux");
         let toggle = repo.toggles.get("multi_condition_toggle").unwrap();
-        let r = toggle.eval(&user, &repo.segments);
-        let r = r.unwrap();
+        let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, MAX_DEEP);
+        let r = r.value.unwrap();
         let r = r.as_object().unwrap();
         assert!(r.get("variation_0").is_some());
 
         let user = FPUser::new().with("os", "linux");
         let toggle = repo.toggles.get("multi_condition_toggle").unwrap();
-        let r = toggle.eval_detail(&user, &repo.segments);
+        let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, MAX_DEEP);
         assert!(r.reason.starts_with("default"));
 
         let user = FPUser::new().with("city", "1");
         let toggle = repo.toggles.get("multi_condition_toggle").unwrap();
-        let r = toggle.eval_detail(&user, &repo.segments);
+        let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, MAX_DEEP);
         assert!(r.reason.starts_with("default"));
     }
 
@@ -645,8 +679,8 @@ mod tests {
         let mut variation_1 = 0;
         let mut variation_2 = 0;
         for user in &users {
-            let r = toggle.eval(user, &repo.segments);
-            let r = r.unwrap();
+            let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, MAX_DEEP);
+            let r = r.value.unwrap();
             let r = r.as_object().unwrap();
             if r.get("variation_0").is_some() {
                 variation_0 += 1;
@@ -676,13 +710,85 @@ mod tests {
 
         let user = FPUser::new().with("city", "100");
         let toggle = repo.toggles.get("disabled_toggle").unwrap();
-        let r = toggle.eval(&user, &repo.segments);
+        let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, MAX_DEEP);
         assert!(r
+            .value
             .unwrap()
             .as_object()
             .unwrap()
             .get("disabled_key")
             .is_some());
+    }
+
+    #[test]
+    fn test_prerequisite_toggle() {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("resources/fixtures/repo.json");
+        let json_str = fs::read_to_string(path).unwrap();
+        let repo = load_json(&json_str);
+        assert!(repo.is_ok());
+        let repo = repo.unwrap();
+
+        let user = FPUser::new().with("city", "4");
+
+        let toggle = repo.toggles.get("prerequisite_toggle").unwrap();
+        let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, MAX_DEEP);
+
+        assert!(r.value.unwrap().as_object().unwrap().get("2").is_some());
+    }
+
+    #[test]
+    fn test_prerequisite_not_exist() {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("resources/fixtures/repo.json");
+        let json_str = fs::read_to_string(path).unwrap();
+        let repo = load_json(&json_str);
+        assert!(repo.is_ok());
+        let repo = repo.unwrap();
+
+        let user = FPUser::new().with("city", "4");
+
+        let toggle = repo.toggles.get("prerequisite_toggle_not_exist").unwrap();
+        let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, MAX_DEEP);
+
+        assert!(r.value.unwrap().as_object().unwrap().get("1").is_some());
+        assert!(r.reason.contains("not exist"));
+    }
+
+    #[test]
+    fn test_prerequisite_not_match() {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("resources/fixtures/repo.json");
+        let json_str = fs::read_to_string(path).unwrap();
+        let repo = load_json(&json_str);
+        assert!(repo.is_ok());
+        let repo = repo.unwrap();
+
+        let user = FPUser::new().with("city", "4");
+
+        let toggle = repo.toggles.get("prerequisite_toggle_not_match").unwrap();
+        let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, MAX_DEEP);
+
+        assert!(r.value.unwrap().as_object().unwrap().get("1").is_some());
+        assert!(r.reason.contains("not match"));
+    }
+
+    #[test]
+    fn test_prerequisite_max_deep() {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("resources/fixtures/repo.json");
+        let json_str = fs::read_to_string(path).unwrap();
+        let repo = load_json(&json_str);
+        assert!(repo.is_ok());
+        let repo = repo.unwrap();
+
+        let user = FPUser::new().with("city", "4");
+
+        let toggle = repo.toggles.get("prerequisite_toggle").unwrap();
+        let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, 1);
+
+        assert!(r.value.unwrap().as_object().unwrap().get("1").is_some());
+        assert!(r.reason.contains("deep overflow"));
     }
 
     fn gen_users(num: usize, random: bool) -> Vec<FPUser> {
@@ -722,6 +828,7 @@ mod distribution_tests {
             user: &user_bucket_by_name,
             variations: &[],
             segment_repo: &Default::default(),
+            toggle_repo: &Default::default(),
         };
         let result = distribution.find_index(&params);
 
@@ -747,6 +854,7 @@ mod distribution_tests {
             user: &user_bucket_by_name,
             variations: &[],
             segment_repo: &Default::default(),
+            toggle_repo: &Default::default(),
         };
         let result = distribution.find_index(&params);
 
@@ -758,6 +866,7 @@ mod distribution_tests {
             user: &user_bucket_by_name,
             variations: &[],
             segment_repo: &Default::default(),
+            toggle_repo: &Default::default(),
         };
         let result = distribution.find_index(&params_no_detail);
         assert!(result.is_err());
@@ -786,6 +895,7 @@ mod distribution_tests {
                 Value::String("b".to_string()),
             ],
             segment_repo: &Default::default(),
+            toggle_repo: &Default::default(),
         };
 
         let result = serve.select_variation(&params).expect_err("e");
@@ -800,8 +910,10 @@ mod condition_tests {
     use std::fs;
     use std::path::PathBuf;
 
+    const MAX_DEEP: u8 = 20;
+
     #[test]
-    fn test_unkown_condition() {
+    fn test_unknown_condition() {
         let json_str = r#"
         {
             "type": "new_type",
@@ -1134,14 +1246,14 @@ mod condition_tests {
 
         let user = FPUser::new().with("city", "1");
         let toggle = repo.toggles.get("json_toggle").unwrap();
-        let r = toggle.eval(&user, &repo.segments);
-        let r = r.unwrap();
+        let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, MAX_DEEP);
+        let r = r.value.unwrap();
         let r = r.as_object().unwrap();
         assert!(r.get("variation_0").is_some());
     }
 
     #[test]
-    fn test_segment_deserilize() {
+    fn test_segment_deserialize() {
         let json_str = r#"
         {
             "type":"segment",

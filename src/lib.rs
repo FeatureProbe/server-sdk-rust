@@ -50,6 +50,16 @@ pub enum FPError {
     InternalError(String),
 }
 
+#[derive(Debug, Error)]
+enum PrerequisiteError {
+    #[error("prerequisite deep overflow")]
+    DeepOverflow,
+    #[error("prerequisite not exist: {0}")]
+    NotExist(String),
+    #[error("prerequisite not match: {0}")]
+    NotMatch(String),
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SdkAuthorization(pub String);
 

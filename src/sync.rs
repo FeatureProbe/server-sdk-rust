@@ -2,7 +2,6 @@ use crate::FPError;
 use crate::Repository;
 use headers::HeaderValue;
 use parking_lot::{Mutex, RwLock};
-#[cfg(feature = "use_tokio")]
 use reqwest::{header::AUTHORIZATION, Client, Method};
 use std::{sync::mpsc::sync_channel, time::Instant};
 use std::{sync::Arc, time::Duration};
@@ -27,7 +26,6 @@ struct Inner {
     toggles_url: Url,
     refresh_interval: Duration,
     auth: HeaderValue,
-    #[cfg(feature = "use_tokio")]
     client: Client,
     repo: Arc<RwLock<Repository>>,
     is_init: Arc<RwLock<bool>>,
@@ -51,7 +49,7 @@ impl Synchronizer {
         toggles_url: Url,
         refresh_interval: Duration,
         auth: HeaderValue,
-        #[cfg(feature = "use_tokio")] client: Client,
+        client: Client,
         repo: Arc<RwLock<Repository>>,
     ) -> Self {
         Self {
@@ -59,7 +57,6 @@ impl Synchronizer {
                 toggles_url,
                 refresh_interval,
                 auth,
-                #[cfg(feature = "use_tokio")]
                 client,
                 repo,
                 is_init: Default::default(),
@@ -73,35 +70,6 @@ impl Synchronizer {
         *lock
     }
 
-    #[cfg(feature = "use_std")]
-    pub fn start_sync(&self, start_wait: Option<Duration>, should_stop: Arc<RwLock<bool>>) {
-        let inner = self.inner.clone();
-        let (tx, rx) = sync_channel(1);
-        let start = Instant::now();
-        let mut is_send = false;
-        let interval_duration = inner.refresh_interval;
-
-        let is_timeout = Self::init_timeout_fn(start_wait, interval_duration, start);
-        std::thread::spawn(move || loop {
-            if let Some(r) =
-                Self::should_send(inner.sync_now(SyncType::Polling), &is_timeout, is_send)
-            {
-                is_send = true;
-                let _ = tx.try_send(r);
-            }
-
-            if *should_stop.read() {
-                break;
-            }
-            std::thread::sleep(inner.refresh_interval);
-        });
-
-        if start_wait.is_some() {
-            let _ = rx.recv();
-        }
-    }
-
-    #[cfg(feature = "use_tokio")]
     pub fn start_sync(&self, start_wait: Option<Duration>, should_stop: Arc<RwLock<bool>>) {
         let inner = self.inner.clone();
         let (tx, rx) = sync_channel(1);
@@ -180,19 +148,12 @@ impl Synchronizer {
     }
 
     pub fn sync_now(&self, t: SyncType) {
-        #[cfg(feature = "use_tokio")]
-        {
-            let slf = self.clone();
-            tokio::spawn(async move { slf.inner.sync_now(t).await });
-        }
-
-        #[cfg(feature = "use_std")]
-        let _ = self.inner.sync_now(t);
+        let slf = self.clone();
+        tokio::spawn(async move { slf.inner.sync_now(t).await });
     }
 }
 
 impl Inner {
-    #[cfg(feature = "use_tokio")]
     pub async fn sync_now(&self, t: SyncType) -> Result<(), FPError> {
         use http::header::USER_AGENT;
 
@@ -234,52 +195,6 @@ impl Inner {
                         Ok(())
                     }
                 },
-            },
-        }
-    }
-
-    #[cfg(feature = "use_std")]
-    pub fn sync_now(&self, t: SyncType) -> Result<(), FPError> {
-        trace!("sync_now {:?}, {:?}", self.auth, t);
-        //TODO: report failure
-        let mut request = ureq::get(self.toggles_url.as_str())
-            .set(
-                "Authorization",
-                self.auth.to_str().expect("already valid header value"),
-            )
-            .set("User-Agent", &crate::USER_AGENT)
-            .timeout(self.refresh_interval);
-
-        {
-            let repo = self.repo.read();
-            if let Some(version) = &repo.version {
-                request = request.query("version", &version.to_string())
-            }
-        } // drop repo lock
-
-        match request.call() {
-            Err(e) => Err(FPError::HttpError(e.to_string())),
-            Ok(r) => match r.into_string() {
-                Err(e) => Err(FPError::HttpError(e.to_string())),
-                Ok(body) => {
-                    match serde_json::from_str::<Repository>(&body) {
-                        Err(e) => Err(FPError::JsonError(body, e)),
-                        Ok(r) => {
-                            // TODO: validate repo
-                            debug!("sync success {:?}", r);
-                            let mut repo = self.repo.write();
-                            if r.version > repo.version {
-                                let old = (*repo).clone();
-                                let new = r.clone();
-                                *repo = r;
-                                self.notify_update(old, new, t);
-                            }
-                            let mut is_init = self.is_init.write();
-                            *is_init = true;
-                            Ok(())
-                        }
-                    }
-                }
             },
         }
     }
@@ -358,7 +273,7 @@ mod tests {
         let is_timeout_fn: Option<Box<dyn Fn() -> bool + Send>> = Some(Box::new(|| false));
         let is_send = true;
         let r = Synchronizer::should_send(
-            Err(FPError::InternalError("unkown".to_owned())),
+            Err(FPError::InternalError("unknown".to_owned())),
             &is_timeout_fn,
             is_send,
         );
@@ -366,7 +281,7 @@ mod tests {
 
         let is_timeout_fn: Option<Box<dyn Fn() -> bool + Send>> = Some(Box::new(|| true));
         let r = Synchronizer::should_send(
-            Err(FPError::InternalError("unkown".to_owned())),
+            Err(FPError::InternalError("unknown".to_owned())),
             &is_timeout_fn,
             is_send,
         );
@@ -375,7 +290,7 @@ mod tests {
         let is_send = false;
         let is_timeout_fn: Option<Box<dyn Fn() -> bool + Send>> = Some(Box::new(|| true));
         let r = Synchronizer::should_send(
-            Err(FPError::InternalError("unkown".to_owned())),
+            Err(FPError::InternalError("unknown".to_owned())),
             &is_timeout_fn,
             is_send,
         );
@@ -410,7 +325,6 @@ mod tests {
                 toggles_url,
                 refresh_interval,
                 auth,
-                #[cfg(feature = "use_tokio")]
                 client: Default::default(),
                 repo: Default::default(),
                 is_init: Default::default(),
