@@ -31,6 +31,7 @@ pub(crate) struct Config {
 
     #[cfg(feature = "realtime")]
     pub realtime_url: Url,
+    #[cfg(feature = "realtime")]
     pub realtime_path: String,
     pub max_prerequisites_deep: u8,
 }

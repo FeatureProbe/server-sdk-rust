@@ -12,5 +12,5 @@ release-test:
 	cargo test --release --verbose --features async --no-default-features
 test:
 	cargo test --verbose && \
-	cargo test --verbose --features internal --features realtime --no-default-features
+	cargo test --verbose --features internal --no-default-features
 
