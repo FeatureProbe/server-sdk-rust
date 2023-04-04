@@ -78,8 +78,8 @@ impl Distribution {
         };
 
         let salt = match &self.salt {
-            None => eval_param.key,
-            Some(s) => s,
+            Some(s) if !s.is_empty() => s,
+            _ => eval_param.key,
         };
 
         let bucket_index = salt_hash(&hash_key, salt, 10000);
@@ -112,7 +112,6 @@ fn salt_hash(key: &str, salt: &str, bucket_size: u64) -> u32 {
         v.push(hax_value[i]);
     }
     let mut v = v.as_slice();
-
     let value = v.read_u32::<BigEndian>().expect("can not be here");
     value % bucket_size as u32
 }
