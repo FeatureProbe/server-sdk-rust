@@ -204,11 +204,10 @@ impl Toggle {
         }
 
         match self.check_prerequisites(eval_param, max_deep) {
-            Ok(is_pass) => {
-                if !is_pass {
-                    return Ok(self.default_variation(eval_param, None));
-                }
+            Ok(is_match) if !is_match => {
+                return Ok(self.default_variation(eval_param, None));
             }
+            Ok(_is_match) => {}
             Err(e) => return Err(e),
         }
 
