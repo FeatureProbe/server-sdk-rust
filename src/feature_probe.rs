@@ -219,75 +219,27 @@ impl FeatureProbe {
                 debug_until_time,
             )
         });
-        let track_access_events = match repo.toggles.get(toggle) {
-            Some(toggle) => toggle.track_access_events(),
-            None => false,
-        };
-        let ts = unix_timestamp();
-        self.record_access(toggle, user, track_access_events, &detail, ts);
-        self.record_debug(toggle, user, debug_until_time, &detail, ts);
-        if let Some(mut detail) = detail {
-            detail.debug_until_time = debug_until_time;
-            return Some(detail);
-        }
-        detail
-    }
 
-    fn record_access(
-        &self,
-        toggle: &str,
-        user: &FPUser,
-        track_access_events: bool,
-        detail: &Option<EvalDetail<Value>>,
-        ts: u128,
-    ) -> Option<()> {
-        let recorder = self.event_recorder.as_ref()?;
-        let detail = detail.as_ref()?;
-        let value = detail.value.as_ref()?;
-        let event = AccessEvent {
-            kind: "access".to_string(),
-            time: ts,
-            key: toggle.to_owned(),
-            user: user.key(),
-            value: value.clone(),
-            variation_index: detail.variation_index.unwrap(),
-            version: detail.version,
-            rule_index: detail.rule_index,
-            track_access_events,
-        };
-        recorder.record_event(Event::AccessEvent(event));
-        None
-    }
-
-    fn record_debug(
-        &self,
-        toggle: &str,
-        user: &FPUser,
-        debug_until_time: Option<u64>,
-        detail: &Option<EvalDetail<Value>>,
-        ts: u128,
-    ) -> Option<()> {
-        let recorder = self.event_recorder.as_ref()?;
-        let detail = detail.as_ref()?;
-        let value = detail.value.as_ref()?;
-        if let Some(debug_until_time) = debug_until_time {
-            if debug_until_time as u128 >= ts {
-                let debug = DebugEvent {
-                    kind: "debug".to_string(),
-                    time: ts,
-                    key: toggle.to_owned(),
-                    user: user.key(),
-                    user_detail: serde_json::to_value(user).unwrap(),
-                    value: value.clone(),
-                    variation_index: detail.variation_index.unwrap(),
-                    version: detail.version,
-                    rule_index: detail.rule_index,
-                    reason: Some(detail.reason.to_string()),
-                };
-                recorder.record_event(Event::DebugEvent(debug));
-            }
+        if let Some(recorder) = &self.event_recorder {
+            let track_access_events = repo
+                .toggles
+                .get(toggle)
+                .map(|t| t.track_access_events())
+                .unwrap_or(false);
+            record_event(
+                recorder.clone(),
+                track_access_events,
+                toggle,
+                user,
+                detail.clone(),
+                debug_until_time,
+            )
         }
-        None
+
+        detail.map(|mut d| {
+            d.debug_until_time = debug_until_time;
+            d
+        })
     }
 
     fn start(&mut self) {
@@ -408,6 +360,97 @@ impl FeatureProbe {
     }
 }
 
+fn record_event(
+    recorder: EventRecorder,
+    track_access_events: bool,
+    toggle: &str,
+    user: &FPUser,
+    detail: Option<EvalDetail<Value>>,
+    debug_until_time: Option<u64>,
+) {
+    let toggle = toggle.to_owned();
+    let user = user.key();
+    let user_detail = serde_json::to_value(user.clone()).unwrap_or_default();
+
+    tokio::spawn(async move {
+        let ts = unix_timestamp();
+        record_access(
+            &recorder,
+            &toggle,
+            user.clone(),
+            track_access_events,
+            &detail,
+            ts,
+        );
+        record_debug(
+            &recorder,
+            &toggle,
+            user,
+            user_detail,
+            debug_until_time,
+            &detail,
+            ts,
+        );
+    });
+}
+
+fn record_access(
+    recorder: &EventRecorder,
+    toggle: &str,
+    user: String,
+    track_access_events: bool,
+    detail: &Option<EvalDetail<Value>>,
+    ts: u128,
+) -> Option<()> {
+    let detail = detail.as_ref()?;
+    let value = detail.value.as_ref()?;
+    let event = AccessEvent {
+        kind: "access".to_string(),
+        time: ts,
+        key: toggle.to_owned(),
+        user,
+        value: value.clone(),
+        variation_index: detail.variation_index?,
+        version: detail.version,
+        rule_index: detail.rule_index,
+        track_access_events,
+    };
+    recorder.record_event(Event::AccessEvent(event));
+    None
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_debug(
+    recorder: &EventRecorder,
+    toggle: &str,
+    user: String,
+    user_detail: Value,
+    debug_until_time: Option<u64>,
+    detail: &Option<EvalDetail<Value>>,
+    ts: u128,
+) -> Option<()> {
+    let detail = detail.as_ref()?;
+    let value = detail.value.as_ref()?;
+    if let Some(debug_until_time) = debug_until_time {
+        if debug_until_time as u128 >= ts {
+            let debug = DebugEvent {
+                kind: "debug".to_string(),
+                time: ts,
+                key: toggle.to_owned(),
+                user,
+                user_detail,
+                value: value.clone(),
+                variation_index: detail.variation_index?,
+                version: detail.version,
+                rule_index: detail.rule_index,
+                reason: Some(detail.reason.to_string()),
+            };
+            recorder.record_event(Event::DebugEvent(debug));
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -497,7 +540,7 @@ mod tests {
     }
 
     #[test]
-    fn test_feature_probe_track() {
+    fn test_feature_probe_record_debug() {
         let json = load_local_json("resources/fixtures/repo.json");
         let mut repo = json.unwrap();
         repo.debug_until_time = Some(unix_timestamp() as u64 + 60 * 1000);
