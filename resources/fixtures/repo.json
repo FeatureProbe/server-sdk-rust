@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "debugUntilTime": 1681289908000,
   "segments": {
     "some_segment1-fjoaefjaam": {
       "key": "some_segment1",

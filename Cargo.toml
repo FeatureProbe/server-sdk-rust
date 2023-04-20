@@ -1,7 +1,7 @@
 [package]
 edition = "2021"
 name = "feature-probe-server-sdk"
-version = "2.1.1"
+version = "2.2.0"
 license = "Apache-2.0"
 authors = ["maintain@featureprobe.com"]
 description = "FeatureProbe Server Side SDK for Rust"
@@ -40,7 +40,7 @@ thiserror = "1.0"
 tracing = "0.1"
 url = "2"
 
-feature-probe-event = { version = "1.1.3", features = [
+feature-probe-event = { version = "1.2.0", features = [
   "use_tokio",
 ], default-features = false}
 

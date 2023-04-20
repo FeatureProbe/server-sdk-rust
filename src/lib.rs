@@ -56,8 +56,6 @@ enum PrerequisiteError {
     DeepOverflow,
     #[error("prerequisite not exist: {0}")]
     NotExist(String),
-    #[error("prerequisite not match: {0}")]
-    NotMatch(String),
 }
 
 #[derive(Debug, Deserialize)]
