@@ -8,6 +8,7 @@ use crate::{sync::UpdateCallback, user::FPUser};
 use crate::{FPDetail, SdkAuthorization, Toggle};
 use event::event::AccessEvent;
 use event::event::CustomEvent;
+use event::event::DebugEvent;
 use event::event::Event;
 use event::recorder::unix_timestamp;
 use event::recorder::EventRecorder;
@@ -207,6 +208,7 @@ impl FeatureProbe {
 
     fn eval(&self, toggle: &str, user: &FPUser, is_detail: bool) -> Option<EvalDetail<Value>> {
         let repo = self.repo.read();
+        let debug_until_time = repo.debug_until_time;
         let detail = repo.toggles.get(toggle).map(|toggle| {
             toggle.eval(
                 user,
@@ -214,17 +216,23 @@ impl FeatureProbe {
                 &repo.toggles,
                 is_detail,
                 self.config.max_prerequisites_deep,
+                debug_until_time,
             )
         });
         let track_access_events = match repo.toggles.get(toggle) {
             Some(toggle) => toggle.track_access_events(),
             None => false,
         };
-        self.record_detail(toggle, user, track_access_events, &detail);
+        self.record_access(toggle, user, track_access_events, &detail);
+        self.record_debug(toggle, user, debug_until_time, &detail);
+        if let Some(mut detail) = detail {
+            detail.debug_until_time = debug_until_time;
+            return Some(detail);
+        }
         detail
     }
 
-    fn record_detail(
+    fn record_access(
         &self,
         toggle: &str,
         user: &FPUser,
@@ -243,10 +251,39 @@ impl FeatureProbe {
             variation_index: detail.variation_index.unwrap(),
             version: detail.version,
             rule_index: detail.rule_index,
-            reason: Some(detail.reason.to_string()),
             track_access_events,
         };
         recorder.record_event(Event::AccessEvent(event));
+        None
+    }
+
+    fn record_debug(
+        &self,
+        toggle: &str,
+        user: &FPUser,
+        debug_until_time: Option<u64>,
+        detail: &Option<EvalDetail<Value>>,
+    ) -> Option<()> {
+        let recorder = self.event_recorder.as_ref()?;
+        let detail = detail.as_ref()?;
+        let value = detail.value.as_ref()?;
+        if let Some(debug_until_time) = debug_until_time {
+            if debug_until_time as u128 >= unix_timestamp() {
+                let debug = DebugEvent {
+                    kind: "debug".to_string(),
+                    time: unix_timestamp(),
+                    key: toggle.to_owned(),
+                    user: user.key(),
+                    user_detail: serde_json::to_value(user).unwrap(),
+                    value: value.clone(),
+                    variation_index: detail.variation_index.unwrap(),
+                    version: detail.version,
+                    rule_index: detail.rule_index,
+                    reason: Some(detail.reason.to_string()),
+                };
+                recorder.record_event(Event::DebugEvent(debug));
+            }
+        }
         None
     }
 
