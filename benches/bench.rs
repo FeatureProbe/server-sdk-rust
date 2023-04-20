@@ -7,14 +7,21 @@ fn bench_bool_toggle(pair: (&FeatureProbe, &FPUser)) {
     let fp = pair.0;
     let user = pair.1;
 
-    let _d = fp.bool_detail("bool_toogle", user, false);
+    let _d = fp.bool_value("bool_toggle", user, false);
+}
+
+fn bench_bool_toggle_detail(pair: (&FeatureProbe, &FPUser)) {
+    let fp = pair.0;
+    let user = pair.1;
+
+    let _d = fp.bool_detail("bool_toggle", user, false);
 }
 
 fn bench_json_toggle(pair: (&FeatureProbe, &FPUser)) {
     let fp = pair.0;
     let user = pair.1;
 
-    let _d = fp.json_detail("multi_condition_toggle", user, json!(""));
+    let _d = fp.json_value("multi_condition_toggle", user, json!(""));
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -26,12 +33,16 @@ fn criterion_benchmark(c: &mut Criterion) {
     let user_hit = FPUser::new().with("city", "1");
     let fp = FeatureProbe::new_with("secret key".to_string(), repo);
 
-    c.bench_function("bench_bool_toggle_defualt", |b| {
+    c.bench_function("bench_bool_toggle_default", |b| {
         b.iter(|| bench_bool_toggle(black_box((&fp, &user_default))))
     });
 
     c.bench_function("bench_bool_toggle_hit", |b| {
         b.iter(|| bench_bool_toggle(black_box((&fp, &user_hit))))
+    });
+
+    c.bench_function("bench_bool_toggle_detail_hit", |b| {
+        b.iter(|| bench_bool_toggle_detail(black_box((&fp, &user_hit))))
     });
 
     c.bench_function("bench_json_toggle_default", |b| {
