@@ -223,8 +223,9 @@ impl FeatureProbe {
             Some(toggle) => toggle.track_access_events(),
             None => false,
         };
-        self.record_access(toggle, user, track_access_events, &detail);
-        self.record_debug(toggle, user, debug_until_time, &detail);
+        let ts = unix_timestamp();
+        self.record_access(toggle, user, track_access_events, &detail, ts);
+        self.record_debug(toggle, user, debug_until_time, &detail, ts);
         if let Some(mut detail) = detail {
             detail.debug_until_time = debug_until_time;
             return Some(detail);
@@ -238,13 +239,14 @@ impl FeatureProbe {
         user: &FPUser,
         track_access_events: bool,
         detail: &Option<EvalDetail<Value>>,
+        ts: u128,
     ) -> Option<()> {
         let recorder = self.event_recorder.as_ref()?;
         let detail = detail.as_ref()?;
         let value = detail.value.as_ref()?;
         let event = AccessEvent {
             kind: "access".to_string(),
-            time: unix_timestamp(),
+            time: ts,
             key: toggle.to_owned(),
             user: user.key(),
             value: value.clone(),
@@ -263,15 +265,16 @@ impl FeatureProbe {
         user: &FPUser,
         debug_until_time: Option<u64>,
         detail: &Option<EvalDetail<Value>>,
+        ts: u128,
     ) -> Option<()> {
         let recorder = self.event_recorder.as_ref()?;
         let detail = detail.as_ref()?;
         let value = detail.value.as_ref()?;
         if let Some(debug_until_time) = debug_until_time {
-            if debug_until_time as u128 >= unix_timestamp() {
+            if debug_until_time as u128 >= ts {
                 let debug = DebugEvent {
                     kind: "debug".to_string(),
-                    time: unix_timestamp(),
+                    time: ts,
                     key: toggle.to_owned(),
                     user: user.key(),
                     user_detail: serde_json::to_value(user).unwrap(),
@@ -491,6 +494,16 @@ mod tests {
         let fp = FeatureProbe::new_for_tests(toggles);
         assert_eq!(fp.number_value("toggle_2", &u, 20.0), 12.5);
         assert_eq!(fp.string_value("toggle_3", &u, "val".to_owned()), "value");
+    }
+
+    #[test]
+    fn test_feature_probe_track() {
+        let json = load_local_json("resources/fixtures/repo.json");
+        let mut repo = json.unwrap();
+        repo.debug_until_time = Some(unix_timestamp() as u64 + 60 * 1000);
+        let fp = FeatureProbe::new_with("secret key".to_string(), repo);
+        let u = FPUser::new().with("name", "bob").with("city", "1");
+        fp.bool_value("bool_toggle", &u, false);
     }
 
     fn load_local_json(file: &str) -> Result<Repository, FPError> {
