@@ -52,8 +52,8 @@ pub enum FPError {
 
 #[derive(Debug, Error)]
 enum PrerequisiteError {
-    #[error("prerequisite deep overflow")]
-    DeepOverflow,
+    #[error("prerequisite depth overflow")]
+    DepthOverflow,
     #[error("prerequisite not exist: {0}")]
     NotExist(String),
 }

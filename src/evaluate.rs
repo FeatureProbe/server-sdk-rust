@@ -184,31 +184,22 @@ impl Toggle {
 
         match self.do_eval(&eval_param, deep) {
             Ok(eval) => eval,
-            Err(e) => self.default_variation(&eval_param, Some(e.to_string())),
+            Err(e) => self.disabled_variation(&eval_param, Some(e.to_string())),
         }
     }
 
     fn do_eval(
         &self,
         eval_param: &EvalParams,
-        max_deep: u8,
+        max_depth: u8,
     ) -> Result<EvalDetail<Value>, PrerequisiteError> {
         if !self.enabled {
-            let v = self.disabled_serve.select_variation(eval_param).ok();
-            return Ok(self.serve_variation(
-                v,
-                "disabled".to_owned(),
-                None,
-                eval_param.debug_until_time,
-            ));
+            return Ok(self.disabled_variation(eval_param, None))
         }
 
-        match self.check_prerequisites(eval_param, max_deep) {
-            Ok(is_match) if !is_match => {
-                return Ok(self.default_variation(eval_param, None));
-            }
-            Ok(_is_match) => {}
-            Err(e) => return Err(e),
+        if !self.meet_prerequisite(eval_param, max_depth)? {
+            return Ok(self.disabled_variation(eval_param, Some(
+                "Prerequisite not match".to_owned())));
         }
 
         for (i, rule) in self.rules.iter().enumerate() {
@@ -237,13 +228,13 @@ impl Toggle {
         Ok(self.default_variation(eval_param, None))
     }
 
-    fn check_prerequisites(
+    fn meet_prerequisite(
         &self,
         eval_param: &EvalParams,
         deep: u8,
     ) -> Result<bool, PrerequisiteError> {
         if deep == 0 {
-            return Err(PrerequisiteError::DeepOverflow);
+            return Err(PrerequisiteError::DepthOverflow);
         }
 
         if let Some(ref prerequisites) = self.prerequisites {
@@ -300,10 +291,38 @@ impl Toggle {
         eval_param: &EvalParams,
         reason: Option<String>,
     ) -> EvalDetail<Value> {
-        match self.default_serve.select_variation(eval_param) {
+        return self.fixed_variation(
+            &self.default_serve,
+            eval_param,
+            "default.".to_owned(),
+            reason,
+        );
+    }
+
+    fn disabled_variation(
+        &self,
+        eval_param: &EvalParams,
+        reason: Option<String>,
+    ) -> EvalDetail<Value> {
+        return self.fixed_variation(
+            &self.disabled_serve,
+            eval_param,
+            "disabled.".to_owned(),
+            reason,
+        );
+    }
+
+    fn fixed_variation(
+        &self,
+        serve: &Serve,
+        eval_param: &EvalParams,
+        default_reason: String,
+        reason: Option<String>,
+    ) -> EvalDetail<Value> {
+        match serve.select_variation(eval_param) {
             Ok(v) => self.serve_variation(
                 Some(v),
-                concat_reason("default".to_owned(), reason),
+                concat_reason(default_reason, reason),
                 None,
                 eval_param.debug_until_time,
             ),
@@ -776,7 +795,7 @@ mod tests {
     }
 
     #[test]
-    fn test_prerequisite_not_exist() {
+    fn test_prerequisite_not_exist_should_return_disabled_variation() {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push("resources/fixtures/repo.json");
         let json_str = fs::read_to_string(path).unwrap();
@@ -789,12 +808,12 @@ mod tests {
         let toggle = repo.toggles.get("prerequisite_toggle_not_exist").unwrap();
         let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, MAX_DEEP, None);
 
-        assert!(r.value.unwrap().as_object().unwrap().get("1").is_some());
+        assert!(r.value.unwrap().as_object().unwrap().get("0").is_some());
         assert!(r.reason.contains("not exist"));
     }
 
     #[test]
-    fn test_prerequisite_not_match() {
+    fn test_prerequisite_not_match_should_return_disabled_variation() {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push("resources/fixtures/repo.json");
         let json_str = fs::read_to_string(path).unwrap();
@@ -807,12 +826,12 @@ mod tests {
         let toggle = repo.toggles.get("prerequisite_toggle_not_match").unwrap();
         let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, MAX_DEEP, None);
 
-        assert!(r.value.unwrap().as_object().unwrap().get("1").is_some());
-        assert!(r.reason.contains("default."));
+        assert!(r.value.unwrap().as_object().unwrap().get("0").is_some());
+        assert!(r.reason.contains("disabled."));
     }
 
     #[test]
-    fn test_prerequisite_max_deep() {
+    fn test_prerequisite_depth_overflow_should_return_disabled_variation() {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push("resources/fixtures/repo.json");
         let json_str = fs::read_to_string(path).unwrap();
@@ -825,8 +844,8 @@ mod tests {
         let toggle = repo.toggles.get("prerequisite_toggle").unwrap();
         let r = toggle.eval(&user, &repo.segments, &repo.toggles, false, 1, None);
 
-        assert!(r.value.unwrap().as_object().unwrap().get("1").is_some());
-        assert!(r.reason.contains("deep overflow"));
+        assert!(r.value.unwrap().as_object().unwrap().get("0").is_some());
+        assert!(r.reason.contains("depth overflow"));
     }
 
     fn gen_users(num: usize, random: bool) -> Vec<FPUser> {
