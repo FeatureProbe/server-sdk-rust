@@ -24,7 +24,7 @@ realtime = ["socketio-rs"]
 [dependencies]
 anyhow = "1.0"
 byteorder = "1"
-dashmap = "5.4"
+dashmap = "5.5"
 headers = "0.3"
 http = "0.2"
 lazy_static = "1.4"
