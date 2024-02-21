@@ -174,6 +174,10 @@ impl FeatureProbe {
         }
     }
 
+    pub fn version(&self) -> Option<u128> {
+        self.syncer.as_ref().map(|s| s.version()).flatten()
+    }
+
     fn generic_eval<T: Default + Debug>(
         &self,
         toggle: &str,

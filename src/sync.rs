@@ -105,6 +105,11 @@ impl Synchronizer {
         *lock = Some(update_callback);
     }
 
+    pub fn version(&self) -> Option<u128> {
+        let repo = self.inner.repo.read();
+        repo.version
+    }
+
     #[cfg(test)]
     pub fn repository(&self) -> Arc<RwLock<Repository>> {
         self.inner.repo.clone()
