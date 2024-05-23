@@ -813,7 +813,7 @@ dependencies = [
 
 [[package]]
 name = "feature-probe-server-sdk"
-version = "2.3.1"
+version = "2.3.2"
 dependencies = [
  "anyhow",
  "approx",

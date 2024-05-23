@@ -252,7 +252,9 @@ impl FeatureProbe {
         #[cfg(feature = "realtime")]
         self.connect_socket();
 
-        self.flush_events();
+        if self.config.track_events {
+            self.flush_events();
+        }
     }
 
     fn sync(&mut self) {

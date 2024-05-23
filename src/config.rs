@@ -18,6 +18,7 @@ pub struct FPConfig {
     pub realtime_url: Option<Url>,
     #[cfg(feature = "realtime")]
     pub realtime_path: Option<String>,
+    pub track_events: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +29,7 @@ pub(crate) struct Config {
     pub refresh_interval: Duration,
     pub http_client: Option<Client>,
     pub start_wait: Option<Duration>,
+    pub track_events: bool,
 
     #[cfg(feature = "realtime")]
     pub realtime_url: Url,
@@ -51,6 +53,7 @@ impl Default for FPConfig {
             realtime_url: None,
             #[cfg(feature = "realtime")]
             realtime_path: None,
+            track_events: true,
         }
     }
 }
@@ -62,6 +65,7 @@ impl Default for Config {
             toggles_url: Url::parse("https://featureprobe.io/server/api/server-sdk/toggles")
                 .unwrap(),
             events_url: Url::parse("https://featureprobe.io/server/api/events").unwrap(),
+            track_events: true,
             refresh_interval: Duration::from_secs(60),
             start_wait: None,
             http_client: None,
@@ -114,6 +118,7 @@ impl FPConfig {
             refresh_interval: self.refresh_interval,
             start_wait: self.start_wait,
             http_client: self.http_client.clone(),
+            track_events: self.track_events,
             #[cfg(feature = "realtime")]
             realtime_url,
             #[cfg(feature = "realtime")]
